@@ -226,6 +226,14 @@ const applyCost = (resources: ResourceState, cost: Cost) => {
   return updated
 }
 
+const getUnitCost = (key: UnitKey, owned: number) => {
+  const config = UNIT_CONFIG[key]
+  const multiplier = Math.pow(config.costGrowth, owned)
+  return Object.fromEntries(
+    Object.entries(config.baseCost).map(([resource, value]) => [resource, value * multiplier]),
+  ) as Cost
+}
+
 type UpgradeState = Record<UpgradeKey, boolean>
 
 type ProductionSnapshot = {
@@ -298,8 +306,15 @@ const resourceFlavour: Record<ResourceKey, string> = {
   data: 'Crystalline memory encoded from every contact.',
 }
 
+const formatCostLabel = (cost: Cost) =>
+  Object.entries(cost)
+    .filter(([, value]) => value && value > 0)
+    .map(([resource, value]) => `${resourceLabels[resource as ResourceKey]} ${formatNumber(value)}`)
+    .join(' • ')
+
 const distanceMilestones = [15, 40, 90, 180, 320]
 const dataMilestones = [60, 180, 420, 800]
+const STABILIZE_COST: Cost = { data: 45 }
 
 function App() {
   const [resources, setResources] = useState<ResourceState>(INITIAL_RESOURCES)
@@ -327,6 +342,25 @@ function App() {
     () => computeProduction(resources, units, upgradeState, prestige),
     [resources, units, upgradeState, prestige],
   )
+
+  const stabilizeAffordable = canAffordCost(resources, STABILIZE_COST)
+
+  const prestigeProjection = useMemo(() => {
+    const baseGain = Math.max(1, Math.floor(resources.data / 450) + Math.floor(resources.distance / 200))
+    const bonus = upgradeState.quantumMemory ? 1 : 0
+    const projectedGain = baseGain + bonus
+    const projectedKnowledge = prestige.storedKnowledge + projectedGain
+    const currentMultiplier = 1 + prestige.cycles * 0.55 + prestige.storedKnowledge * 0.12
+    const nextMultiplier = 1 + (prestige.cycles + 1) * 0.55 + projectedKnowledge * 0.12
+
+    return {
+      baseGain,
+      projectedGain,
+      projectedKnowledge,
+      currentMultiplier,
+      nextMultiplier,
+    }
+  }, [resources.data, resources.distance, prestige.cycles, prestige.storedKnowledge, upgradeState.quantumMemory])
 
   useEffect(() => {
     document.title = `Von Idle Probes • ${formatNumber(resources.probes)} probes`
@@ -372,10 +406,7 @@ function App() {
 
   const handlePurchaseUnit = (key: UnitKey) => {
     const config = UNIT_CONFIG[key]
-    const costMultiplier = Math.pow(config.costGrowth, units[key])
-    const cost = Object.fromEntries(
-      Object.entries(config.baseCost).map(([resource, value]) => [resource, value * costMultiplier]),
-    ) as Cost
+    const cost = getUnitCost(key, units[key])
     let success = false
     setResources((prev) => {
       if (!canAffordCost(prev, cost)) {
@@ -409,12 +440,11 @@ function App() {
   }
 
   const handleStabilize = () => {
-    const stabilizeCost: Cost = { data: 45 }
     let success = false
     setResources((prev) => {
-      if (!canAffordCost(prev, stabilizeCost)) return prev
+      if (!canAffordCost(prev, STABILIZE_COST)) return prev
       success = true
-      const updated = applyCost(prev, stabilizeCost)
+      const updated = applyCost(prev, STABILIZE_COST)
       updated.entropy = Math.max(0, updated.entropy - 0.16)
       return updated
     })
@@ -509,17 +539,47 @@ function App() {
             <div className="entropy-bar">
               <div className="entropy-fill" style={{ width: `${Math.min(100, resources.entropy * 100)}%` }} />
             </div>
+            <p
+              className={`entropy-drift ${
+                productionPreview.entropyChange > 0.001
+                  ? 'entropy-rise'
+                  : productionPreview.entropyChange < -0.001
+                  ? 'entropy-fall'
+                  : ''
+              }`}
+            >
+              Drift {productionPreview.entropyChange >= 0 ? '+' : ''}
+              {productionPreview.entropyChange.toFixed(3)} /s
+            </p>
             <p>
               High entropy slows production and risks divergence. Signal relays and dampers push it back.
             </p>
             <button
               className="primary"
               onClick={handleStabilize}
-              disabled={!canAffordCost(resources, { data: 45 })}
+              disabled={!stabilizeAffordable}
             >
               Stabilize Lattice (45 Data)
             </button>
           </div>
+        </section>
+
+        <section className="telemetry-panel">
+          <article className="telemetry-card">
+            <h3>Exploration Velocity</h3>
+            <span className="telemetry-value">+{formatNumber(productionPreview.distance)} ly/s</span>
+            <p>Signal relays and active probes extend the frontier.</p>
+          </article>
+          <article className="telemetry-card">
+            <h3>Latency Efficiency</h3>
+            <span className="telemetry-value">{(productionPreview.latencyFactor * 100).toFixed(0)}%</span>
+            <p>Autonomy firmware and mesh relays mitigate light delay.</p>
+          </article>
+          <article className="telemetry-card">
+            <h3>Throughput Multiplier</h3>
+            <span className="telemetry-value">{productionPreview.productionFactor.toFixed(2)}×</span>
+            <p>Cycle momentum and entropy control amplify output.</p>
+          </article>
         </section>
 
         <section className="resource-grid">
@@ -542,17 +602,8 @@ function App() {
           <div className="unit-grid">
             {(Object.keys(UNIT_CONFIG) as UnitKey[]).map((key) => {
               const config = UNIT_CONFIG[key]
-              const costMultiplier = Math.pow(config.costGrowth, units[key])
-              const cost = Object.entries(config.baseCost)
-                .map(([resource, value]) => `${resourceLabels[resource as ResourceKey]} ${formatNumber(value * costMultiplier)}`)
-                .join(' • ')
-
-              const affordable = canAffordCost(
-                resources,
-                Object.fromEntries(
-                  Object.entries(config.baseCost).map(([resource, value]) => [resource, value * costMultiplier]),
-                ) as Cost,
-              )
+              const cost = getUnitCost(key, units[key])
+              const affordable = canAffordCost(resources, cost)
 
               return (
                 <article key={key} className="unit-card" style={{ ['--accent' as string]: config.accent }}>
@@ -565,7 +616,7 @@ function App() {
                   </header>
                   <p>{config.description}</p>
                   <footer>
-                    <span className="unit-cost">Cost: {cost}</span>
+                    <span className="unit-cost">Cost: {formatCostLabel(cost)}</span>
                     <button
                       className={affordable ? 'primary' : 'secondary'}
                       onClick={() => handlePurchaseUnit(key)}
@@ -586,9 +637,7 @@ function App() {
             {(Object.keys(UPGRADE_CONFIG) as UpgradeKey[]).map((key) => {
               const config = UPGRADE_CONFIG[key]
               const unlocked = !config.requiresCycle || prestige.cycles >= config.requiresCycle
-              const costLabel = Object.entries(config.cost)
-                .map(([resource, value]) => `${resourceLabels[resource as ResourceKey]} ${formatNumber(value)}`)
-                .join(' • ')
+              const costLabel = formatCostLabel(config.cost)
               const affordable = unlocked && !upgradeState[key] && canAffordCost(resources, config.cost)
 
               return (
@@ -631,6 +680,21 @@ function App() {
               <li>Gain Stored Knowledge to accelerate future cycles.</li>
               <li>Quantum Memory Loom persists between cycles.</li>
             </ul>
+            <div className="prestige-stats">
+              <div>
+                <strong>Projected Memory Gain:</strong> {formatNumber(prestigeProjection.projectedGain)}
+                {prestigeProjection.projectedGain !== prestigeProjection.baseGain ? ' (includes Quantum Memory)' : ''}
+              </div>
+              <div>
+                <strong>Next Cycle Throughput:</strong> {prestigeProjection.nextMultiplier.toFixed(2)}×
+              </div>
+              <div>
+                <strong>Current Cycle Throughput:</strong> {prestigeProjection.currentMultiplier.toFixed(2)}×
+              </div>
+              <div>
+                <strong>Stored Knowledge After Reset:</strong> {formatNumber(prestigeProjection.projectedKnowledge)}
+              </div>
+            </div>
           </div>
           <button className="prestige-button" onClick={handlePrestige} disabled={!prestigeReady}>
             Initiate Ascension
