@@ -407,50 +407,34 @@ function App() {
   const handlePurchaseUnit = (key: UnitKey) => {
     const config = UNIT_CONFIG[key]
     const cost = getUnitCost(key, units[key])
-    let success = false
-    setResources((prev) => {
-      if (!canAffordCost(prev, cost)) {
-        return prev
-      }
-      success = true
-      return applyCost(prev, cost)
-    })
-
-    if (success) {
-      setUnits((prev) => ({ ...prev, [key]: prev[key] + 1 }))
-      setLogs((prev) => [`${config.name} commissioned.`, ...prev].slice(0, 8))
+    if (!canAffordCost(resources, cost)) {
+      return
     }
+
+    setResources((prev) => applyCost(prev, cost))
+    setUnits((prev) => ({ ...prev, [key]: prev[key] + 1 }))
+    setLogs((prev) => [`${config.name} commissioned.`, ...prev].slice(0, 8))
   }
 
   const handlePurchaseUpgrade = (key: UpgradeKey) => {
     if (upgradeState[key]) return
     const config = UPGRADE_CONFIG[key]
     if (config.requiresCycle && prestige.cycles < config.requiresCycle) return
-    let success = false
-    setResources((prev) => {
-      if (!canAffordCost(prev, config.cost)) return prev
-      success = true
-      return applyCost(prev, config.cost)
-    })
+    if (!canAffordCost(resources, config.cost)) return
 
-    if (success) {
-      setUpgradeState((prev) => ({ ...prev, [key]: true }))
-      setLogs((prev) => [`Upgrade acquired: ${config.name}.`, ...prev].slice(0, 8))
-    }
+    setResources((prev) => applyCost(prev, config.cost))
+    setUpgradeState((prev) => ({ ...prev, [key]: true }))
+    setLogs((prev) => [`Upgrade acquired: ${config.name}.`, ...prev].slice(0, 8))
   }
 
   const handleStabilize = () => {
-    let success = false
+    if (!canAffordCost(resources, STABILIZE_COST)) return
+
     setResources((prev) => {
-      if (!canAffordCost(prev, STABILIZE_COST)) return prev
-      success = true
       const updated = applyCost(prev, STABILIZE_COST)
-      updated.entropy = Math.max(0, updated.entropy - 0.16)
-      return updated
+      return { ...updated, entropy: Math.max(0, updated.entropy - 0.16) }
     })
-    if (success) {
-      setLogs((prev) => ['Entropy damped. Replication fidelity restored.', ...prev].slice(0, 8))
-    }
+    setLogs((prev) => ['Entropy damped. Replication fidelity restored.', ...prev].slice(0, 8))
   }
 
   const prestigeReady = resources.distance >= 160 && resources.data >= 900
