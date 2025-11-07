@@ -255,18 +255,26 @@ const computeProduction = (
 ): ProductionSnapshot => {
   const cycleBoost = 1 + prestige.cycles * 0.55 + prestige.storedKnowledge * 0.12
   const signalBonus = 1 + units.signalRelays * 0.18 + (upgrades.autonomy ? 0.35 : 0)
-  const latencyFactor = 1 / (1 + Math.max(0, resources.distance - signalBonus * 90) / (160 + signalBonus * 75))
-  const entropyPressure = 0.012 + resources.distance / 8200
+  const baseLatencyFactor =
+    1 / (1 + Math.max(0, resources.distance - signalBonus * 90) / (160 + signalBonus * 75))
+  const latencyFactor =
+    upgrades.autonomy && baseLatencyFactor < 1
+      ? baseLatencyFactor + (1 - baseLatencyFactor) * 0.2
+      : baseLatencyFactor
+  const entropyPressureBase = 0.012 + resources.distance / 8200
+  const entropyPressure = upgrades.stellarCartography ? entropyPressureBase * 0.85 : entropyPressureBase
   const entropyMitigation = units.stabilizers * 0.018 + (upgrades.stellarCartography ? 0.01 : 0)
   const entropyChange = entropyPressure - entropyMitigation
   const entropyPenalty = Math.max(
     0.28,
     1 - Math.min(0.82, resources.entropy) * (upgrades.quantumMemory ? 0.55 : 0.7),
   )
-  const productionFactor = cycleBoost * latencyFactor * entropyPenalty
+  const delayCompensation = upgrades.autonomy && baseLatencyFactor < 0.999 ? 1.2 : 1
+  const productionFactor = cycleBoost * latencyFactor * entropyPenalty * delayCompensation
   const energyMultiplier = upgrades.dysonSheath ? 1.4 : 1
   const probeMultiplier = upgrades.autoforge ? 1.5 : 1
   const dataMultiplier = upgrades.archiveBloom ? 1.6 : 1
+  const cartographyExplorationBonus = upgrades.stellarCartography ? 1.12 : 1
 
   const metal = (4 + units.harvesters * 9.5 + units.foundries * 1.5) * productionFactor
   const energy = (units.foundries * 6.3 * energyMultiplier + units.harvesters * 1.4) * productionFactor
@@ -278,7 +286,8 @@ const computeProduction = (
     (resources.probes * (0.08 + units.signalRelays * 0.0038 + (upgrades.autonomy ? 0.02 : 0)) +
       units.fabricators * 0.014 +
       units.archives * 0.004) *
-    latencyFactor
+    latencyFactor *
+    cartographyExplorationBonus
 
   return {
     metal,
@@ -314,7 +323,30 @@ const formatCostLabel = (cost: Cost) =>
 
 const distanceMilestones = [15, 40, 90, 180, 320]
 const dataMilestones = [60, 180, 420, 800]
+const PRESTIGE_REQUIREMENTS = { distance: 160, data: 900 }
 const STABILIZE_COST: Cost = { data: 45 }
+
+interface MilestoneProgress {
+  previous: number
+  next?: number
+  progress: number
+  span: number
+}
+
+const getMilestoneProgress = (value: number, milestones: number[]): MilestoneProgress => {
+  const nextIndex = milestones.findIndex((milestone) => milestone > value)
+  if (nextIndex === -1) {
+    const previous = milestones[milestones.length - 1] ?? 0
+    return { previous, next: undefined, progress: 1, span: 1 }
+  }
+
+  const previous = nextIndex > 0 ? milestones[nextIndex - 1] : 0
+  const next = milestones[nextIndex]
+  const span = next - previous || 1
+  const progress = Math.min(1, Math.max(0, (value - previous) / span))
+
+  return { previous, next, progress, span }
+}
 
 function App() {
   const [resources, setResources] = useState<ResourceState>(INITIAL_RESOURCES)
@@ -341,6 +373,16 @@ function App() {
   const productionPreview = useMemo(
     () => computeProduction(resources, units, upgradeState, prestige),
     [resources, units, upgradeState, prestige],
+  )
+
+  const distanceMilestoneProgress = useMemo(
+    () => getMilestoneProgress(resources.distance, distanceMilestones),
+    [resources.distance],
+  )
+
+  const dataMilestoneProgress = useMemo(
+    () => getMilestoneProgress(resources.data, dataMilestones),
+    [resources.data],
   )
 
   const stabilizeAffordable = canAffordCost(resources, STABILIZE_COST)
@@ -437,7 +479,11 @@ function App() {
     setLogs((prev) => ['Entropy damped. Replication fidelity restored.', ...prev].slice(0, 8))
   }
 
-  const prestigeReady = resources.distance >= 160 && resources.data >= 900
+  const prestigeDistanceProgress = Math.min(resources.distance / PRESTIGE_REQUIREMENTS.distance, 1)
+  const prestigeDataProgress = Math.min(resources.data / PRESTIGE_REQUIREMENTS.data, 1)
+
+  const prestigeReady =
+    resources.distance >= PRESTIGE_REQUIREMENTS.distance && resources.data >= PRESTIGE_REQUIREMENTS.data
 
   const handlePrestige = () => {
     if (!prestigeReady) return
@@ -545,6 +591,54 @@ function App() {
             >
               Stabilize Lattice (45 Data)
             </button>
+            <div className="milestone-tracker">
+              <div className="milestone-card">
+                <div className="milestone-header">
+                  <span>Signal Horizon</span>
+                  <span>
+                    {distanceMilestoneProgress.next
+                      ? `${formatNumber(resources.distance)} / ${formatNumber(distanceMilestoneProgress.next)} ly`
+                      : `${formatNumber(resources.distance)} ly`}
+                  </span>
+                </div>
+                <div className="milestone-bar">
+                  <div
+                    className="milestone-bar-fill"
+                    style={{ width: `${distanceMilestoneProgress.progress * 100}%` }}
+                  />
+                </div>
+                <small>
+                  {distanceMilestoneProgress.next
+                    ? `${formatNumber(
+                        resources.distance - distanceMilestoneProgress.previous,
+                      )} / ${formatNumber(distanceMilestoneProgress.span)} ly towards next echo`
+                    : 'All signal waypoints catalogued'}
+                </small>
+              </div>
+              <div className="milestone-card">
+                <div className="milestone-header">
+                  <span>Archive Compression</span>
+                  <span>
+                    {dataMilestoneProgress.next
+                      ? `${formatNumber(resources.data)} / ${formatNumber(dataMilestoneProgress.next)} data`
+                      : `${formatNumber(resources.data)} data`}
+                  </span>
+                </div>
+                <div className="milestone-bar">
+                  <div
+                    className="milestone-bar-fill"
+                    style={{ width: `${dataMilestoneProgress.progress * 100}%` }}
+                  />
+                </div>
+                <small>
+                  {dataMilestoneProgress.next
+                    ? `${formatNumber(resources.data - dataMilestoneProgress.previous)} / ${formatNumber(
+                        dataMilestoneProgress.span,
+                      )} data compressed`
+                    : 'Archives humming at maximum density'}
+                </small>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -660,10 +754,38 @@ function App() {
               but grants lasting knowledge boosts.
             </p>
             <ul>
-              <li>Requires 160 ly explored and 900 data archived.</li>
+              <li>
+                Requires {PRESTIGE_REQUIREMENTS.distance} ly explored and {PRESTIGE_REQUIREMENTS.data} data archived.
+              </li>
               <li>Gain Stored Knowledge to accelerate future cycles.</li>
               <li>Quantum Memory Loom persists between cycles.</li>
             </ul>
+            <div className="prestige-progress-grid">
+              <div className="prestige-progress-block">
+                <div className="progress-header">
+                  <span>Exploration</span>
+                  <span>
+                    {formatNumber(Math.min(resources.distance, PRESTIGE_REQUIREMENTS.distance))} /
+                    {formatNumber(PRESTIGE_REQUIREMENTS.distance)} ly
+                  </span>
+                </div>
+                <div className="progress-bar">
+                  <div style={{ width: `${prestigeDistanceProgress * 100}%` }} />
+                </div>
+              </div>
+              <div className="prestige-progress-block">
+                <div className="progress-header">
+                  <span>Archives</span>
+                  <span>
+                    {formatNumber(Math.min(resources.data, PRESTIGE_REQUIREMENTS.data))} /
+                    {formatNumber(PRESTIGE_REQUIREMENTS.data)} data
+                  </span>
+                </div>
+                <div className="progress-bar">
+                  <div style={{ width: `${prestigeDataProgress * 100}%` }} />
+                </div>
+              </div>
+            </div>
             <div className="prestige-stats">
               <div>
                 <strong>Projected Memory Gain:</strong> {formatNumber(prestigeProjection.projectedGain)}
