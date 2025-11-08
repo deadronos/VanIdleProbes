@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.app.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "../temp-tsc-out",
+    "sourceMap": false
+  },
+  "include": ["../src/**/*"]
+}

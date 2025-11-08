@@ -1,199 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import './App.css'
-
-type ResourceKey = 'metal' | 'energy' | 'data' | 'probes'
-
-type ResourceState = {
-  metal: number
-  energy: number
-  data: number
-  probes: number
-  entropy: number
-  distance: number
-}
-
-type UnitKey =
-  | 'harvesters'
-  | 'foundries'
-  | 'fabricators'
-  | 'archives'
-  | 'signalRelays'
-  | 'stabilizers'
-
-type UpgradeKey =
-  | 'autonomy'
-  | 'dysonSheath'
-  | 'autoforge'
-  | 'archiveBloom'
-  | 'quantumMemory'
-  | 'stellarCartography'
-
-interface Cost {
-  metal?: number
-  energy?: number
-  data?: number
-  probes?: number
-}
-
-interface UnitConfig {
-  name: string
-  description: string
-  accent: string
-  icon: string
-  baseCost: Cost
-  costGrowth: number
-}
-
-interface UpgradeConfig {
-  name: string
-  description: string
-  effect: string
-  accent: string
-  cost: Cost
-  requiresCycle?: number
-  persistent?: boolean
-}
-
-interface PrestigeState {
-  cycles: number
-  storedKnowledge: number
-}
+import type { ResourceKey, ResourceState, UnitKey, UpgradeKey, PrestigeState, UpgradeState } from './game/config'
+import { INITIAL_RESOURCES, INITIAL_UNITS, INITIAL_PRESTIGE, INITIAL_UPGRADES, UNIT_CONFIG, UPGRADE_CONFIG } from './game/config'
+import { computeProduction, simulateOfflineProgress } from './game/engine'
+import { buildSave, saveToLocalStorage, loadFromLocalStorage, exportSaveFile, importSaveFile, migrateSave } from './game/save'
 
 const TICK_MS = 250
 const TICK_RATE = TICK_MS / 1000
-
-const INITIAL_RESOURCES: ResourceState = {
-  metal: 80,
-  energy: 30,
-  data: 0,
-  probes: 4,
-  entropy: 0.04,
-  distance: 0,
-}
-
-const INITIAL_UNITS: Record<UnitKey, number> = {
-  harvesters: 1,
-  foundries: 0,
-  fabricators: 0,
-  archives: 0,
-  signalRelays: 0,
-  stabilizers: 0,
-}
-
-const INITIAL_PRESTIGE: PrestigeState = {
-  cycles: 0,
-  storedKnowledge: 0,
-}
-
-const INITIAL_UPGRADES: Record<UpgradeKey, boolean> = {
-  autonomy: false,
-  dysonSheath: false,
-  autoforge: false,
-  archiveBloom: false,
-  quantumMemory: false,
-  stellarCartography: false,
-}
-
-const UNIT_CONFIG: Record<UnitKey, UnitConfig> = {
-  harvesters: {
-    name: 'Harvester Drones',
-    description: 'Strip-mine asteroids for raw mass. Backbone of the network.',
-    accent: 'var(--accent-cyan)',
-    icon: '🛠️',
-    baseCost: { metal: 35 },
-    costGrowth: 1.15,
-  },
-  foundries: {
-    name: 'Stellar Foundries',
-    description: 'Smelt mined ore into directed energy beams.',
-    accent: 'var(--accent-gold)',
-    icon: '⚙️',
-    baseCost: { metal: 150, energy: 20 },
-    costGrowth: 1.18,
-  },
-  fabricators: {
-    name: 'Autofabricators',
-    description: 'Assemble new Von Neumann probes from raw materials.',
-    accent: 'var(--accent-magenta)',
-    icon: '🛰️',
-    baseCost: { metal: 260, energy: 85 },
-    costGrowth: 1.22,
-  },
-  archives: {
-    name: 'Archive Spires',
-    description: 'Observe and catalogue every discovery into crystalline memory.',
-    accent: 'var(--accent-violet)',
-    icon: '📡',
-    baseCost: { metal: 240, energy: 110, data: 20 },
-    costGrowth: 1.2,
-  },
-  signalRelays: {
-    name: 'Signal Relays',
-    description: 'Extend the mesh network. Mitigates light-delay penalties.',
-    accent: 'var(--accent-blue)',
-    icon: '📶',
-    baseCost: { metal: 210, energy: 160 },
-    costGrowth: 1.19,
-  },
-  stabilizers: {
-    name: 'Entropy Dampers',
-    description: 'Phase-lock stray mutations and keep replication precise.',
-    accent: 'var(--accent-green)',
-    icon: '🧊',
-    baseCost: { metal: 320, energy: 210, data: 45 },
-    costGrowth: 1.25,
-  },
-}
-
-const UPGRADE_CONFIG: Record<UpgradeKey, UpgradeConfig> = {
-  autonomy: {
-    name: 'Autonomy Firmware',
-    description: 'Let remote probes self-correct. Sharply reduces latency.',
-    effect: '+25% exploration speed and +20% production under delay.',
-    accent: 'var(--accent-cyan)',
-    cost: { data: 140, energy: 180 },
-  },
-  dysonSheath: {
-    name: 'Dyson Sheath',
-    description: 'Miniature swarms capture stray stellar energy.',
-    effect: '+40% energy output from foundries.',
-    accent: 'var(--accent-gold)',
-    cost: { data: 180, metal: 520 },
-  },
-  autoforge: {
-    name: 'Recursive Autoforges',
-    description: 'Fabricators construct their own assembly lines.',
-    effect: '+50% probe fabrication efficiency.',
-    accent: 'var(--accent-magenta)',
-    cost: { data: 260, energy: 320 },
-    requiresCycle: 1,
-  },
-  archiveBloom: {
-    name: 'Archive Bloom',
-    description: 'Distributed archivists compress incoming knowledge.',
-    effect: '+60% data generation.',
-    accent: 'var(--accent-violet)',
-    cost: { data: 310, metal: 640 },
-    requiresCycle: 1,
-  },
-  quantumMemory: {
-    name: 'Quantum Memory Loom',
-    description: 'Prestige bonus persists across cycles.',
-    effect: '+1 stored knowledge each prestige and production boost.',
-    accent: 'var(--accent-blue)',
-    cost: { data: 420, probes: 120 },
-    requiresCycle: 1,
-    persistent: true,
-  },
-  stellarCartography: {
-    name: 'Stellar Cartography',
-    description: 'Predictive maps keep entropy under control.',
-    effect: '-15% entropy growth and extra distance insights.',
-    accent: 'var(--accent-green)',
-    cost: { data: 520, energy: 480 },
-    requiresCycle: 2,
-  },
-}
 
 const formatNumber = (value: number) => {
   if (value >= 1_000_000_000) {
@@ -358,6 +171,10 @@ function App() {
     'First probe awakens near a dying star.',
   ])
 
+  const [autosave, setAutosave] = useState<boolean>(true)
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
+  const importInputRef = useRef<HTMLInputElement | null>(null)
+
   const starfield = useMemo(
     () =>
       Array.from({ length: 120 }, (_, idx) => ({
@@ -408,6 +225,40 @@ function App() {
     document.title = `Von Idle Probes • ${formatNumber(resources.probes)} probes`
   }, [resources.probes])
 
+  // On mount: load save from localStorage (with migration) and apply offline progress
+  useEffect(() => {
+    try {
+      const raw = loadFromLocalStorage()
+      if (!raw) return
+      const save = migrateSave(raw)
+      const s = save.state
+      setResources(s.resources)
+      setUnits(s.units)
+      setPrestige(s.prestige)
+      setUpgradeState(s.upgradeState)
+      if (s.logs && s.logs.length) setLogs((prev) => [...s.logs, ...prev].slice(0, 8))
+      setLastSavedAt(save.savedAt)
+
+      const savedAtMs = Date.parse(save.savedAt)
+      if (!Number.isNaN(savedAtMs)) {
+        const offlineSeconds = Math.floor((Date.now() - savedAtMs) / 1000)
+        if (offlineSeconds > 0) {
+          const { resources: newResources, log } = simulateOfflineProgress(
+            s.resources,
+            s.units,
+            s.upgradeState,
+            s.prestige,
+            Math.min(offlineSeconds, 24 * 60 * 60),
+          )
+          setResources(newResources)
+          setLogs((prev) => [log, ...prev].slice(0, 8))
+        }
+      }
+    } catch {
+      // ignore malformed saves
+    }
+  }, [])
+
   useEffect(() => {
     const interval = setInterval(() => {
       const messages: string[] = []
@@ -445,6 +296,21 @@ function App() {
 
     return () => clearInterval(interval)
   }, [units, upgradeState, prestige])
+
+  // Autosave (debounced)
+  useEffect(() => {
+    if (!autosave) return
+    const t = setTimeout(() => {
+      try {
+        const save = buildSave({ resources, units, prestige, upgradeState, logs })
+        saveToLocalStorage(save)
+        setLastSavedAt(save.savedAt)
+      } catch (e) {
+        console.warn('Failed to autosave', e)
+      }
+    }, 2000)
+    return () => clearTimeout(t)
+  }, [resources, units, prestige, upgradeState, logs, autosave])
 
   const handlePurchaseUnit = (key: UnitKey) => {
     const config = UNIT_CONFIG[key]
@@ -506,6 +372,60 @@ function App() {
     setLogs((prev) => [`Cycle rebooted. Memory shards retained: ${memoryGain}.`, ...prev].slice(0, 8))
   }
 
+  const handleExportSave = () => {
+    try {
+      const save = buildSave({ resources, units, prestige, upgradeState, logs })
+      exportSaveFile(save)
+    } catch (e) {
+      console.warn('Export failed', e)
+    }
+  }
+
+  const handleImportChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const save = await importSaveFile(file)
+      const s = save.state
+      setResources(s.resources)
+      setUnits(s.units)
+      setPrestige(s.prestige)
+      setUpgradeState(s.upgradeState)
+      if (s.logs && s.logs.length) setLogs((prev) => [...s.logs, ...prev].slice(0, 8))
+      setLastSavedAt(save.savedAt)
+      saveToLocalStorage(save)
+
+      const savedAtMs = Date.parse(save.savedAt)
+      if (!Number.isNaN(savedAtMs)) {
+        const offlineSeconds = Math.floor((Date.now() - savedAtMs) / 1000)
+        if (offlineSeconds > 0) {
+          const { resources: newResources, log } = simulateOfflineProgress(
+            s.resources,
+            s.units,
+            s.upgradeState,
+            s.prestige,
+            Math.min(offlineSeconds, 24 * 60 * 60),
+          )
+          setResources(newResources)
+          setLogs((prev) => [log, ...prev].slice(0, 8))
+        }
+      }
+    } catch (err) {
+      console.warn('Import failed', err)
+    }
+  }
+
+  const handleManualSave = () => {
+    try {
+      const save = buildSave({ resources, units, prestige, upgradeState, logs })
+      saveToLocalStorage(save)
+      setLastSavedAt(save.savedAt)
+      setLogs((prev) => ['Manual save created.', ...prev].slice(0, 8))
+    } catch (e) {
+      console.warn('Manual save failed', e)
+    }
+  }
+
   return (
     <div className="app">
       <div className="cosmic-background">
@@ -537,6 +457,16 @@ function App() {
             <div className="header-chip">Latency {Math.round(productionPreview.latencyFactor * 100)}%</div>
             <div className="header-chip">Entropy {(resources.entropy * 100).toFixed(1)}%</div>
             <div className="header-chip accent">{formatNumber(resources.distance)} ly explored</div>
+          </div>
+          <div className="save-controls">
+            <button onClick={handleExportSave}>Export</button>
+            <input ref={importInputRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImportChange} />
+            <button onClick={() => importInputRef?.current?.click()}>Import</button>
+            <label className="autosave-toggle">
+              <input type="checkbox" checked={autosave} onChange={(e) => setAutosave(e.target.checked)} /> Autosave
+            </label>
+            <button onClick={handleManualSave}>Save</button>
+            <div className="last-saved">Last saved: {lastSavedAt ? new Date(lastSavedAt).toLocaleString() : 'Never'}</div>
           </div>
         </header>
 

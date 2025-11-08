@@ -1,0 +1,127 @@
+export const INITIAL_RESOURCES = {
+    metal: 80,
+    energy: 30,
+    data: 0,
+    probes: 4,
+    entropy: 0.04,
+    distance: 0,
+};
+export const INITIAL_UNITS = {
+    harvesters: 1,
+    foundries: 0,
+    fabricators: 0,
+    archives: 0,
+    signalRelays: 0,
+    stabilizers: 0,
+};
+export const INITIAL_PRESTIGE = {
+    cycles: 0,
+    storedKnowledge: 0,
+};
+export const INITIAL_UPGRADES = {
+    autonomy: false,
+    dysonSheath: false,
+    autoforge: false,
+    archiveBloom: false,
+    quantumMemory: false,
+    stellarCartography: false,
+};
+export const UNIT_CONFIG = {
+    harvesters: {
+        name: 'Harvester Drones',
+        description: 'Strip-mine asteroids for raw mass. Backbone of the network.',
+        accent: 'var(--accent-cyan)',
+        icon: '🛠️',
+        baseCost: { metal: 35 },
+        costGrowth: 1.15,
+    },
+    foundries: {
+        name: 'Stellar Foundries',
+        description: 'Smelt mined ore into directed energy beams.',
+        accent: 'var(--accent-gold)',
+        icon: '⚙️',
+        baseCost: { metal: 150, energy: 20 },
+        costGrowth: 1.18,
+    },
+    fabricators: {
+        name: 'Autofabricators',
+        description: 'Assemble new Von Neumann probes from raw materials.',
+        accent: 'var(--accent-magenta)',
+        icon: '🛰️',
+        baseCost: { metal: 260, energy: 85 },
+        costGrowth: 1.22,
+    },
+    archives: {
+        name: 'Archive Spires',
+        description: 'Observe and catalogue every discovery into crystalline memory.',
+        accent: 'var(--accent-violet)',
+        icon: '📡',
+        baseCost: { metal: 240, energy: 110, data: 20 },
+        costGrowth: 1.2,
+    },
+    signalRelays: {
+        name: 'Signal Relays',
+        description: 'Extend the mesh network. Mitigates light-delay penalties.',
+        accent: 'var(--accent-blue)',
+        icon: '📶',
+        baseCost: { metal: 210, energy: 160 },
+        costGrowth: 1.19,
+    },
+    stabilizers: {
+        name: 'Entropy Dampers',
+        description: 'Phase-lock stray mutations and keep replication precise.',
+        accent: 'var(--accent-green)',
+        icon: '🧊',
+        baseCost: { metal: 320, energy: 210, data: 45 },
+        costGrowth: 1.25,
+    },
+};
+export const UPGRADE_CONFIG = {
+    autonomy: {
+        name: 'Autonomy Firmware',
+        description: 'Let remote probes self-correct. Sharply reduces latency.',
+        effect: '+25% exploration speed and +20% production under delay.',
+        accent: 'var(--accent-cyan)',
+        cost: { data: 140, energy: 180 },
+    },
+    dysonSheath: {
+        name: 'Dyson Sheath',
+        description: 'Miniature swarms capture stray stellar energy.',
+        effect: '+40% energy output from foundries.',
+        accent: 'var(--accent-gold)',
+        cost: { data: 180, metal: 520 },
+    },
+    autoforge: {
+        name: 'Recursive Autoforges',
+        description: 'Fabricators construct their own assembly lines.',
+        effect: '+50% probe fabrication efficiency.',
+        accent: 'var(--accent-magenta)',
+        cost: { data: 260, energy: 320 },
+        requiresCycle: 1,
+    },
+    archiveBloom: {
+        name: 'Archive Bloom',
+        description: 'Distributed archivists compress incoming knowledge.',
+        effect: '+60% data generation.',
+        accent: 'var(--accent-violet)',
+        cost: { data: 310, metal: 640 },
+        requiresCycle: 1,
+    },
+    quantumMemory: {
+        name: 'Quantum Memory Loom',
+        description: 'Prestige bonus persists across cycles.',
+        effect: '+1 stored knowledge each prestige and production boost.',
+        accent: 'var(--accent-blue)',
+        cost: { data: 420, probes: 120 },
+        requiresCycle: 1,
+        persistent: true,
+    },
+    stellarCartography: {
+        name: 'Stellar Cartography',
+        description: 'Predictive maps keep entropy under control.',
+        effect: '-15% entropy growth and extra distance insights.',
+        accent: 'var(--accent-green)',
+        cost: { data: 520, energy: 480 },
+        requiresCycle: 2,
+    },
+};

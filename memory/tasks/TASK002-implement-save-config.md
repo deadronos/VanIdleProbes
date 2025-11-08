@@ -1,6 +1,6 @@
 # [TASK010] Implement versioned saves, config extraction, offline simulation, and tests
 
-**Status:** Pending  
+**Status:** In Progress  
 **Added:** 2025-11-08  
 **Updated:** 2025-11-08
 
@@ -36,17 +36,28 @@ Add autosave (default on, localStorage), interactive Export/Import JSON saves wi
 ## Subtasks
 | ID  | Description | Status | Updated | Notes |
 | --- | ----------- | ------ | ------- | ----- |
-| 1.1 | Add `src/game/config.ts` | Not Started | 2025-11-08 | Move constants/types |
-| 1.2 | Add `src/game/engine.ts` | Not Started | 2025-11-08 | Export compute/simulate |
-| 1.3 | Add `src/game/save.ts` | Not Started | 2025-11-08 | Migration & export/import |
-| 1.4 | Edit `src/App.tsx` UI & autosave | Not Started | 2025-11-08 | Add controls and load logic |
-| 1.5 | Add tests + test runner | Not Started | 2025-11-08 | `migrate` and `offline` tests |
+| 1.1 | Add `src/game/config.ts` | Completed | 2025-11-08 | Move constants/types |
+| 1.2 | Add `src/game/engine.ts` | Completed | 2025-11-08 | Export compute/simulate |
+| 1.3 | Add `src/game/save.ts` | Completed | 2025-11-08 | Migration & export/import |
+| 1.4 | Edit `src/App.tsx` UI & autosave | Completed | 2025-11-08 | Add controls and load logic |
+| 1.5 | Add tests + test runner | Completed | 2025-11-08 | `migrate` and `offline` tests added |
 | 1.6 | CI workflow (optional) | Not Started | 2025-11-08 | Run tests on PRs |
 
 ## Progress Log
 ### 2025-11-08
 - Task created with implementation plan and design file drafted.
 - Waiting for approval to create files and apply changes.
+### 2025-11-08 (update)
+- Created `src/game/config.ts` and moved constant/type definitions.
+- Created `src/game/engine.ts` exporting `computeProduction` and `simulateOfflineProgress`.
+- Created `src/game/save.ts` with `SaveV1`, migration helpers, import/export, and localStorage helpers.
+- Updated `src/App.tsx`: wired imports, added autosave (debounced 2s), export/import UI, manual save, and load-on-start with migration + offline simulation.
+### 2025-11-08 (tests)
+- Added unit tests: `tests/migrate.test.ts` and `tests/offline.test.ts`.
+- Added `vitest` to `devDependencies` and `test` script in `package.json`.
+### 2025-11-08 (test-run)
+- Attempted to run tests with `npm test`. Vitest started but failed transforming modules in this environment due to a Vite SSR transform issue (`__vite_ssr_exportName__ is not defined`).
+- Added `vitest.config.ts` with `server.deps.inline` to attempt to inline `src/game` during transforms; tests still fail in this environment. Suggested fixes are documented below.
 
 ## Acceptance Criteria
 - `vanidleprobes.save.v1` persists valid `SaveV1` JSON.
