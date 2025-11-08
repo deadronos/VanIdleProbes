@@ -84,12 +84,17 @@ flowchart TD
    - Current status
    - Known issues
 
-7. `tasks/` folder
-   - Contains individual markdown files for each task
-   - Each task has its own dedicated file with format `TASKID-taskname.md`
-   - Task IDs must remain unique across both `memory/tasks` and `memory/tasks/COMPLETED`; check both directories before allocating a number because completed tasks may be archived there.
-   - Includes task index file (`_index.md`) listing all tasks with their statuses
-   - Preserves complete thought process and history for each task
+7. `tasks/` folder (and `designs/` folder for design docs)
+    - Contains individual markdown files for each task and design
+    - Naming conventions:
+        - Design files: `DESNNN-descriptive-name.md` (example: `DES001-save-config-design.md`)
+        - Task files: `TASKNNN-descriptive-name.md` (example: `TASK002-implement-save-config.md`)
+        - `NNN` is a zero-padded, ascending integer (start at `001`) and must be unique within its folder
+    - ID uniqueness and allocation:
+        - Before creating a new `DES` or `TASK` file, check both the active folder and the corresponding `COMPLETED` archive (for example: `memory/designs`, `memory/designs/COMPLETED`, `memory/tasks`, `memory/tasks/COMPLETED`) to avoid ID collisions.
+        - Reserve the next ascending number when creating a new file to keep IDs easy to scan and chronological.
+    - Includes index files (for example `tasks/_index.md`) listing items with their statuses
+    - Preserves complete thought process and history for each task or design file
 
 ### Additional Context
 

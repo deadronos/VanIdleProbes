@@ -6,7 +6,7 @@
 
 ## Pending
 
-- None
+- [TASK002] Implement versioned saves, config extraction, offline simulation, and tests - Pending 2025-11-08
 
 ## Completed
 
