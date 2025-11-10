@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import './App.css'
-import type { ResourceKey, ResourceState, UnitKey, UpgradeKey, PrestigeState, UpgradeState } from './game/config'
+import type { ResourceKey, ResourceState, UnitKey, UpgradeKey, PrestigeState, UpgradeState, Cost } from './game/config'
 import { INITIAL_RESOURCES, INITIAL_UNITS, INITIAL_PRESTIGE, INITIAL_UPGRADES, UNIT_CONFIG, UPGRADE_CONFIG } from './game/config'
 import { computeProduction, simulateOfflineProgress } from './game/engine'
 import { buildSave, saveToLocalStorage, loadFromLocalStorage, exportSaveFile, importSaveFile, migrateSave } from './game/save'
@@ -46,73 +46,7 @@ const getUnitCost = (key: UnitKey, owned: number) => {
     Object.entries(config.baseCost).map(([resource, value]) => [resource, value * multiplier]),
   ) as Cost
 }
-
-type UpgradeState = Record<UpgradeKey, boolean>
-
-type ProductionSnapshot = {
-  metal: number
-  energy: number
-  data: number
-  probes: number
-  distance: number
-  entropyChange: number
-  latencyFactor: number
-  productionFactor: number
-}
-
-const computeProduction = (
-  resources: ResourceState,
-  units: Record<UnitKey, number>,
-  upgrades: UpgradeState,
-  prestige: PrestigeState,
-): ProductionSnapshot => {
-  const cycleBoost = 1 + prestige.cycles * 0.55 + prestige.storedKnowledge * 0.12
-  const signalBonus = 1 + units.signalRelays * 0.18 + (upgrades.autonomy ? 0.35 : 0)
-  const baseLatencyFactor =
-    1 / (1 + Math.max(0, resources.distance - signalBonus * 90) / (160 + signalBonus * 75))
-  const latencyFactor =
-    upgrades.autonomy && baseLatencyFactor < 1
-      ? baseLatencyFactor + (1 - baseLatencyFactor) * 0.2
-      : baseLatencyFactor
-  const entropyPressureBase = 0.012 + resources.distance / 8200
-  const entropyPressure = upgrades.stellarCartography ? entropyPressureBase * 0.85 : entropyPressureBase
-  const entropyMitigation = units.stabilizers * 0.018 + (upgrades.stellarCartography ? 0.01 : 0)
-  const entropyChange = entropyPressure - entropyMitigation
-  const entropyPenalty = Math.max(
-    0.28,
-    1 - Math.min(0.82, resources.entropy) * (upgrades.quantumMemory ? 0.55 : 0.7),
-  )
-  const delayCompensation = upgrades.autonomy && baseLatencyFactor < 0.999 ? 1.2 : 1
-  const productionFactor = cycleBoost * latencyFactor * entropyPenalty * delayCompensation
-  const energyMultiplier = upgrades.dysonSheath ? 1.4 : 1
-  const probeMultiplier = upgrades.autoforge ? 1.5 : 1
-  const dataMultiplier = upgrades.archiveBloom ? 1.6 : 1
-  const cartographyExplorationBonus = upgrades.stellarCartography ? 1.12 : 1
-
-  const metal = (4 + units.harvesters * 9.5 + units.foundries * 1.5) * productionFactor
-  const energy = (units.foundries * 6.3 * energyMultiplier + units.harvesters * 1.4) * productionFactor
-  const probes = (units.fabricators * 0.95 * probeMultiplier + resources.probes * 0.012) * productionFactor
-  const data =
-    (units.archives * 1.45 * dataMultiplier + Math.max(0, resources.distance - 40) * 0.018 + 0.05) *
-    productionFactor
-  const distance =
-    (resources.probes * (0.08 + units.signalRelays * 0.0038 + (upgrades.autonomy ? 0.02 : 0)) +
-      units.fabricators * 0.014 +
-      units.archives * 0.004) *
-    latencyFactor *
-    cartographyExplorationBonus
-
-  return {
-    metal,
-    energy,
-    data,
-    probes,
-    distance,
-    entropyChange,
-    latencyFactor,
-    productionFactor,
-  }
-}
+// Use `computeProduction` and `ProductionSnapshot` from `game/engine`.
 
 const resourceOrder: ResourceKey[] = ['metal', 'energy', 'probes', 'data']
 const resourceLabels: Record<ResourceKey, string> = {
@@ -129,7 +63,7 @@ const resourceFlavour: Record<ResourceKey, string> = {
 }
 
 const formatCostLabel = (cost: Cost) =>
-  Object.entries(cost)
+  (Object.entries(cost) as [ResourceKey, number][])
     .filter(([, value]) => value && value > 0)
     .map(([resource, value]) => `${resourceLabels[resource as ResourceKey]} ${formatNumber(value)}`)
     .join(' • ')
@@ -236,7 +170,10 @@ function App() {
       setUnits(s.units)
       setPrestige(s.prestige)
       setUpgradeState(s.upgradeState)
-      if (s.logs && s.logs.length) setLogs((prev) => [...s.logs, ...prev].slice(0, 8))
+      if (s.logs && s.logs.length) {
+        const loadedLogs = s.logs
+        setLogs((prev) => [...loadedLogs, ...prev].slice(0, 8))
+      }
       setLastSavedAt(save.savedAt)
 
       const savedAtMs = Date.parse(save.savedAt)
@@ -391,7 +328,10 @@ function App() {
       setUnits(s.units)
       setPrestige(s.prestige)
       setUpgradeState(s.upgradeState)
-      if (s.logs && s.logs.length) setLogs((prev) => [...s.logs, ...prev].slice(0, 8))
+      if (s.logs && s.logs.length) {
+        const loadedLogs = s.logs
+        setLogs((prev) => [...loadedLogs, ...prev].slice(0, 8))
+      }
       setLastSavedAt(save.savedAt)
       saveToLocalStorage(save)
 
