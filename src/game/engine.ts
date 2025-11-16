@@ -50,17 +50,17 @@ export const computeProduction = (
   upgrades: UpgradeState,
   prestige: PrestigeState,
 ): ProductionSnapshot => {
-  const cycleBoost = 1 + prestige.cycles * 0.55 + prestige.storedKnowledge * 0.12
-  const signalBonus = 1 + units.signalRelays * 0.18 + (upgrades.autonomy ? 0.35 : 0)
+  const cycleBoost = 1 + prestige.cycles * 0.55 + prestige.storedKnowledge * 0.15
+  const signalBonus = 1 + units.signalRelays * 0.22 + (upgrades.autonomy ? 0.42 : 0)
   const baseLatencyFactor =
-    1 / (1 + Math.max(0, resources.distance - signalBonus * 90) / (160 + signalBonus * 75))
+    1 / (1 + Math.max(0, resources.distance - signalBonus * 105) / (210 + signalBonus * 90))
   const latencyFactor =
     upgrades.autonomy && baseLatencyFactor < 1
-      ? baseLatencyFactor + (1 - baseLatencyFactor) * 0.2
+      ? baseLatencyFactor + (1 - baseLatencyFactor) * 0.25
       : baseLatencyFactor
-  const entropyPressureBase = 0.012 + resources.distance / 8200
-  const entropyPressure = upgrades.stellarCartography ? entropyPressureBase * 0.85 : entropyPressureBase
-  const entropyMitigation = units.stabilizers * 0.018 + (upgrades.stellarCartography ? 0.01 : 0)
+  const entropyPressureBase = 0.01 + resources.distance / 9200
+  const entropyPressure = upgrades.stellarCartography ? entropyPressureBase * 0.82 : entropyPressureBase
+  const entropyMitigation = units.stabilizers * 0.022 + (upgrades.stellarCartography ? 0.012 : 0)
   const entropyChange = entropyPressure - entropyMitigation
   const entropyPenalty = Math.max(
     0.28,
@@ -68,21 +68,21 @@ export const computeProduction = (
   )
   const delayCompensation = upgrades.autonomy && baseLatencyFactor < 0.999 ? 1.2 : 1
   const productionFactor = cycleBoost * latencyFactor * entropyPenalty * delayCompensation
-  const energyMultiplier = upgrades.dysonSheath ? 1.4 : 1
-  const probeMultiplier = upgrades.autoforge ? 1.5 : 1
-  const dataMultiplier = upgrades.archiveBloom ? 1.6 : 1
-  const cartographyExplorationBonus = upgrades.stellarCartography ? 1.12 : 1
+  const energyMultiplier = upgrades.dysonSheath ? 1.42 : 1
+  const probeMultiplier = upgrades.autoforge ? 1.55 : 1
+  const dataMultiplier = upgrades.archiveBloom ? 1.62 : 1
+  const cartographyExplorationBonus = upgrades.stellarCartography ? 1.14 : 1
 
-  const metal = (4 + units.harvesters * 9.5 + units.foundries * 1.5) * productionFactor
-  const energy = (units.foundries * 6.3 * energyMultiplier + units.harvesters * 1.4) * productionFactor
-  const probes = (units.fabricators * 0.95 * probeMultiplier + resources.probes * 0.012) * productionFactor
+  const metal = (5.5 + units.harvesters * 11 + units.foundries * 2) * productionFactor
+  const energy = (units.foundries * 7.2 * energyMultiplier + units.harvesters * 1.8) * productionFactor
+  const probes = (units.fabricators * 1.05 * probeMultiplier + resources.probes * 0.015) * productionFactor
   const data =
-    (units.archives * 1.45 * dataMultiplier + Math.max(0, resources.distance - 40) * 0.018 + 0.05) *
+    (units.archives * 1.7 * dataMultiplier + Math.max(0, resources.distance - 32) * 0.022 + 0.1) *
     productionFactor
   const distance =
-    (resources.probes * (0.08 + units.signalRelays * 0.0038 + (upgrades.autonomy ? 0.02 : 0)) +
-      units.fabricators * 0.014 +
-      units.archives * 0.004) *
+    (resources.probes * (0.1 + units.signalRelays * 0.0043 + (upgrades.autonomy ? 0.026 : 0)) +
+      units.fabricators * 0.017 +
+      units.archives * 0.005) *
     latencyFactor *
     cartographyExplorationBonus
 

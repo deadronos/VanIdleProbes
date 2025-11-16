@@ -33,16 +33,16 @@ type UpgradeState = Record<UpgradeKey, boolean>
 
 // Minimal local defaults copied from `config.ts` to avoid runtime import during test transforms
 const INITIAL_RESOURCES: ResourceState = {
-  metal: 80,
-  energy: 30,
+  metal: 95,
+  energy: 45,
   data: 0,
-  probes: 4,
-  entropy: 0.04,
+  probes: 6,
+  entropy: 0.03,
   distance: 0,
 }
 
 const INITIAL_UNITS: Record<UnitKey, number> = {
-  harvesters: 1,
+  harvesters: 2,
   foundries: 0,
   fabricators: 0,
   archives: 0,
