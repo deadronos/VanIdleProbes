@@ -1,199 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import './App.css'
-
-type ResourceKey = 'metal' | 'energy' | 'data' | 'probes'
-
-type ResourceState = {
-  metal: number
-  energy: number
-  data: number
-  probes: number
-  entropy: number
-  distance: number
-}
-
-type UnitKey =
-  | 'harvesters'
-  | 'foundries'
-  | 'fabricators'
-  | 'archives'
-  | 'signalRelays'
-  | 'stabilizers'
-
-type UpgradeKey =
-  | 'autonomy'
-  | 'dysonSheath'
-  | 'autoforge'
-  | 'archiveBloom'
-  | 'quantumMemory'
-  | 'stellarCartography'
-
-interface Cost {
-  metal?: number
-  energy?: number
-  data?: number
-  probes?: number
-}
-
-interface UnitConfig {
-  name: string
-  description: string
-  accent: string
-  icon: string
-  baseCost: Cost
-  costGrowth: number
-}
-
-interface UpgradeConfig {
-  name: string
-  description: string
-  effect: string
-  accent: string
-  cost: Cost
-  requiresCycle?: number
-  persistent?: boolean
-}
-
-interface PrestigeState {
-  cycles: number
-  storedKnowledge: number
-}
+import type { ResourceKey, ResourceState, UnitKey, UpgradeKey, PrestigeState, UpgradeState, Cost } from './game/config'
+import { INITIAL_RESOURCES, INITIAL_UNITS, INITIAL_PRESTIGE, INITIAL_UPGRADES, UNIT_CONFIG, UPGRADE_CONFIG } from './game/config'
+import { computeProduction, simulateOfflineProgress } from './game/engine'
+import { buildSave, saveToLocalStorage, loadFromLocalStorage, exportSaveFile, importSaveFile, migrateSave } from './game/save'
 
 const TICK_MS = 250
 const TICK_RATE = TICK_MS / 1000
-
-const INITIAL_RESOURCES: ResourceState = {
-  metal: 80,
-  energy: 30,
-  data: 0,
-  probes: 4,
-  entropy: 0.04,
-  distance: 0,
-}
-
-const INITIAL_UNITS: Record<UnitKey, number> = {
-  harvesters: 1,
-  foundries: 0,
-  fabricators: 0,
-  archives: 0,
-  signalRelays: 0,
-  stabilizers: 0,
-}
-
-const INITIAL_PRESTIGE: PrestigeState = {
-  cycles: 0,
-  storedKnowledge: 0,
-}
-
-const INITIAL_UPGRADES: Record<UpgradeKey, boolean> = {
-  autonomy: false,
-  dysonSheath: false,
-  autoforge: false,
-  archiveBloom: false,
-  quantumMemory: false,
-  stellarCartography: false,
-}
-
-const UNIT_CONFIG: Record<UnitKey, UnitConfig> = {
-  harvesters: {
-    name: 'Harvester Drones',
-    description: 'Strip-mine asteroids for raw mass. Backbone of the network.',
-    accent: 'var(--accent-cyan)',
-    icon: '🛠️',
-    baseCost: { metal: 35 },
-    costGrowth: 1.15,
-  },
-  foundries: {
-    name: 'Stellar Foundries',
-    description: 'Smelt mined ore into directed energy beams.',
-    accent: 'var(--accent-gold)',
-    icon: '⚙️',
-    baseCost: { metal: 150, energy: 20 },
-    costGrowth: 1.18,
-  },
-  fabricators: {
-    name: 'Autofabricators',
-    description: 'Assemble new Von Neumann probes from raw materials.',
-    accent: 'var(--accent-magenta)',
-    icon: '🛰️',
-    baseCost: { metal: 260, energy: 85 },
-    costGrowth: 1.22,
-  },
-  archives: {
-    name: 'Archive Spires',
-    description: 'Observe and catalogue every discovery into crystalline memory.',
-    accent: 'var(--accent-violet)',
-    icon: '📡',
-    baseCost: { metal: 240, energy: 110, data: 20 },
-    costGrowth: 1.2,
-  },
-  signalRelays: {
-    name: 'Signal Relays',
-    description: 'Extend the mesh network. Mitigates light-delay penalties.',
-    accent: 'var(--accent-blue)',
-    icon: '📶',
-    baseCost: { metal: 210, energy: 160 },
-    costGrowth: 1.19,
-  },
-  stabilizers: {
-    name: 'Entropy Dampers',
-    description: 'Phase-lock stray mutations and keep replication precise.',
-    accent: 'var(--accent-green)',
-    icon: '🧊',
-    baseCost: { metal: 320, energy: 210, data: 45 },
-    costGrowth: 1.25,
-  },
-}
-
-const UPGRADE_CONFIG: Record<UpgradeKey, UpgradeConfig> = {
-  autonomy: {
-    name: 'Autonomy Firmware',
-    description: 'Let remote probes self-correct. Sharply reduces latency.',
-    effect: '+25% exploration speed and +20% production under delay.',
-    accent: 'var(--accent-cyan)',
-    cost: { data: 140, energy: 180 },
-  },
-  dysonSheath: {
-    name: 'Dyson Sheath',
-    description: 'Miniature swarms capture stray stellar energy.',
-    effect: '+40% energy output from foundries.',
-    accent: 'var(--accent-gold)',
-    cost: { data: 180, metal: 520 },
-  },
-  autoforge: {
-    name: 'Recursive Autoforges',
-    description: 'Fabricators construct their own assembly lines.',
-    effect: '+50% probe fabrication efficiency.',
-    accent: 'var(--accent-magenta)',
-    cost: { data: 260, energy: 320 },
-    requiresCycle: 1,
-  },
-  archiveBloom: {
-    name: 'Archive Bloom',
-    description: 'Distributed archivists compress incoming knowledge.',
-    effect: '+60% data generation.',
-    accent: 'var(--accent-violet)',
-    cost: { data: 310, metal: 640 },
-    requiresCycle: 1,
-  },
-  quantumMemory: {
-    name: 'Quantum Memory Loom',
-    description: 'Prestige bonus persists across cycles.',
-    effect: '+1 stored knowledge each prestige and production boost.',
-    accent: 'var(--accent-blue)',
-    cost: { data: 420, probes: 120 },
-    requiresCycle: 1,
-    persistent: true,
-  },
-  stellarCartography: {
-    name: 'Stellar Cartography',
-    description: 'Predictive maps keep entropy under control.',
-    effect: '-15% entropy growth and extra distance insights.',
-    accent: 'var(--accent-green)',
-    cost: { data: 520, energy: 480 },
-    requiresCycle: 2,
-  },
-}
 
 const formatNumber = (value: number) => {
   if (value >= 1_000_000_000) {
@@ -233,73 +46,7 @@ const getUnitCost = (key: UnitKey, owned: number) => {
     Object.entries(config.baseCost).map(([resource, value]) => [resource, value * multiplier]),
   ) as Cost
 }
-
-type UpgradeState = Record<UpgradeKey, boolean>
-
-type ProductionSnapshot = {
-  metal: number
-  energy: number
-  data: number
-  probes: number
-  distance: number
-  entropyChange: number
-  latencyFactor: number
-  productionFactor: number
-}
-
-const computeProduction = (
-  resources: ResourceState,
-  units: Record<UnitKey, number>,
-  upgrades: UpgradeState,
-  prestige: PrestigeState,
-): ProductionSnapshot => {
-  const cycleBoost = 1 + prestige.cycles * 0.55 + prestige.storedKnowledge * 0.12
-  const signalBonus = 1 + units.signalRelays * 0.18 + (upgrades.autonomy ? 0.35 : 0)
-  const baseLatencyFactor =
-    1 / (1 + Math.max(0, resources.distance - signalBonus * 90) / (160 + signalBonus * 75))
-  const latencyFactor =
-    upgrades.autonomy && baseLatencyFactor < 1
-      ? baseLatencyFactor + (1 - baseLatencyFactor) * 0.2
-      : baseLatencyFactor
-  const entropyPressureBase = 0.012 + resources.distance / 8200
-  const entropyPressure = upgrades.stellarCartography ? entropyPressureBase * 0.85 : entropyPressureBase
-  const entropyMitigation = units.stabilizers * 0.018 + (upgrades.stellarCartography ? 0.01 : 0)
-  const entropyChange = entropyPressure - entropyMitigation
-  const entropyPenalty = Math.max(
-    0.28,
-    1 - Math.min(0.82, resources.entropy) * (upgrades.quantumMemory ? 0.55 : 0.7),
-  )
-  const delayCompensation = upgrades.autonomy && baseLatencyFactor < 0.999 ? 1.2 : 1
-  const productionFactor = cycleBoost * latencyFactor * entropyPenalty * delayCompensation
-  const energyMultiplier = upgrades.dysonSheath ? 1.4 : 1
-  const probeMultiplier = upgrades.autoforge ? 1.5 : 1
-  const dataMultiplier = upgrades.archiveBloom ? 1.6 : 1
-  const cartographyExplorationBonus = upgrades.stellarCartography ? 1.12 : 1
-
-  const metal = (4 + units.harvesters * 9.5 + units.foundries * 1.5) * productionFactor
-  const energy = (units.foundries * 6.3 * energyMultiplier + units.harvesters * 1.4) * productionFactor
-  const probes = (units.fabricators * 0.95 * probeMultiplier + resources.probes * 0.012) * productionFactor
-  const data =
-    (units.archives * 1.45 * dataMultiplier + Math.max(0, resources.distance - 40) * 0.018 + 0.05) *
-    productionFactor
-  const distance =
-    (resources.probes * (0.08 + units.signalRelays * 0.0038 + (upgrades.autonomy ? 0.02 : 0)) +
-      units.fabricators * 0.014 +
-      units.archives * 0.004) *
-    latencyFactor *
-    cartographyExplorationBonus
-
-  return {
-    metal,
-    energy,
-    data,
-    probes,
-    distance,
-    entropyChange,
-    latencyFactor,
-    productionFactor,
-  }
-}
+// Use `computeProduction` and `ProductionSnapshot` from `game/engine`.
 
 const resourceOrder: ResourceKey[] = ['metal', 'energy', 'probes', 'data']
 const resourceLabels: Record<ResourceKey, string> = {
@@ -316,15 +63,15 @@ const resourceFlavour: Record<ResourceKey, string> = {
 }
 
 const formatCostLabel = (cost: Cost) =>
-  Object.entries(cost)
+  (Object.entries(cost) as [ResourceKey, number][])
     .filter(([, value]) => value && value > 0)
     .map(([resource, value]) => `${resourceLabels[resource as ResourceKey]} ${formatNumber(value)}`)
     .join(' • ')
 
 const distanceMilestones = [15, 40, 90, 180, 320]
 const dataMilestones = [60, 180, 420, 800]
-const PRESTIGE_REQUIREMENTS = { distance: 160, data: 900 }
-const STABILIZE_COST: Cost = { data: 45 }
+const PRESTIGE_REQUIREMENTS = { distance: 120, data: 650 }
+const STABILIZE_COST: Cost = { data: 35 }
 
 interface MilestoneProgress {
   previous: number
@@ -358,6 +105,10 @@ function App() {
     'First probe awakens near a dying star.',
   ])
 
+  const [autosave, setAutosave] = useState<boolean>(true)
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
+  const importInputRef = useRef<HTMLInputElement | null>(null)
+
   const starfield = useMemo(
     () =>
       Array.from({ length: 120 }, (_, idx) => ({
@@ -370,10 +121,27 @@ function App() {
     [],
   )
 
+  const swarmSeed = useRef(
+    Array.from({ length: 18 }, (_, idx) => ({
+      id: idx,
+      angle: Math.random() * 360,
+      radius: 18 + Math.random() * 18,
+      duration: 12 + Math.random() * 8,
+      hue: 170 + Math.random() * 120,
+    })),
+  )
+
   const productionPreview = useMemo(
     () => computeProduction(resources, units, upgradeState, prestige),
     [resources, units, upgradeState, prestige],
   )
+
+  const activeProbeCount = useMemo(
+    () => Math.max(3, Math.min(swarmSeed.current.length, Math.floor(resources.probes / 6))),
+    [resources.probes],
+  )
+
+  const orbitExpansion = useMemo(() => 1 + Math.min(resources.distance / 260, 1.6), [resources.distance])
 
   const distanceMilestoneProgress = useMemo(
     () => getMilestoneProgress(resources.distance, distanceMilestones),
@@ -387,26 +155,70 @@ function App() {
 
   const stabilizeAffordable = canAffordCost(resources, STABILIZE_COST)
 
+  const baseMemoryGain = useMemo(() => {
+    const distancePortion = Math.floor(resources.distance / 140)
+    const dataPortion = Math.floor(resources.data / 320)
+    const completionBurst =
+      resources.distance >= PRESTIGE_REQUIREMENTS.distance && resources.data >= PRESTIGE_REQUIREMENTS.data ? 1 : 0
+    return Math.max(2, distancePortion + dataPortion + completionBurst)
+  }, [resources.data, resources.distance])
+
   const prestigeProjection = useMemo(() => {
-    const baseGain = Math.max(1, Math.floor(resources.data / 450) + Math.floor(resources.distance / 200))
     const bonus = upgradeState.quantumMemory ? 1 : 0
-    const projectedGain = baseGain + bonus
+    const projectedGain = baseMemoryGain + bonus
     const projectedKnowledge = prestige.storedKnowledge + projectedGain
-    const currentMultiplier = 1 + prestige.cycles * 0.55 + prestige.storedKnowledge * 0.12
-    const nextMultiplier = 1 + (prestige.cycles + 1) * 0.55 + projectedKnowledge * 0.12
+    const currentMultiplier = 1 + prestige.cycles * 0.55 + prestige.storedKnowledge * 0.15
+    const nextMultiplier = 1 + (prestige.cycles + 1) * 0.55 + projectedKnowledge * 0.15
 
     return {
-      baseGain,
+      baseGain: baseMemoryGain,
       projectedGain,
       projectedKnowledge,
       currentMultiplier,
       nextMultiplier,
     }
-  }, [resources.data, resources.distance, prestige.cycles, prestige.storedKnowledge, upgradeState.quantumMemory])
+  }, [baseMemoryGain, prestige.cycles, prestige.storedKnowledge, upgradeState.quantumMemory])
 
   useEffect(() => {
     document.title = `Von Idle Probes • ${formatNumber(resources.probes)} probes`
   }, [resources.probes])
+
+  // On mount: load save from localStorage (with migration) and apply offline progress
+  useEffect(() => {
+    try {
+      const raw = loadFromLocalStorage()
+      if (!raw) return
+      const save = migrateSave(raw)
+      const s = save.state
+      setResources(s.resources)
+      setUnits(s.units)
+      setPrestige(s.prestige)
+      setUpgradeState(s.upgradeState)
+      if (s.logs && s.logs.length) {
+        const loadedLogs = s.logs
+        setLogs((prev) => [...loadedLogs, ...prev].slice(0, 8))
+      }
+      setLastSavedAt(save.savedAt)
+
+      const savedAtMs = Date.parse(save.savedAt)
+      if (!Number.isNaN(savedAtMs)) {
+        const offlineSeconds = Math.floor((Date.now() - savedAtMs) / 1000)
+        if (offlineSeconds > 0) {
+          const { resources: newResources, log } = simulateOfflineProgress(
+            s.resources,
+            s.units,
+            s.upgradeState,
+            s.prestige,
+            Math.min(offlineSeconds, 24 * 60 * 60),
+          )
+          setResources(newResources)
+          setLogs((prev) => [log, ...prev].slice(0, 8))
+        }
+      }
+    } catch {
+      // ignore malformed saves
+    }
+  }, [])
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -445,6 +257,21 @@ function App() {
 
     return () => clearInterval(interval)
   }, [units, upgradeState, prestige])
+
+  // Autosave (debounced)
+  useEffect(() => {
+    if (!autosave) return
+    const t = setTimeout(() => {
+      try {
+        const save = buildSave({ resources, units, prestige, upgradeState, logs })
+        saveToLocalStorage(save)
+        setLastSavedAt(save.savedAt)
+      } catch (e) {
+        console.warn('Failed to autosave', e)
+      }
+    }, 2000)
+    return () => clearTimeout(t)
+  }, [resources, units, prestige, upgradeState, logs, autosave])
 
   const handlePurchaseUnit = (key: UnitKey) => {
     const config = UNIT_CONFIG[key]
@@ -487,7 +314,7 @@ function App() {
 
   const handlePrestige = () => {
     if (!prestigeReady) return
-    const memoryGain = Math.max(1, Math.floor(resources.data / 450) + Math.floor(resources.distance / 200))
+    const memoryGain = baseMemoryGain
     setPrestige((prev) => ({
       cycles: prev.cycles + 1,
       storedKnowledge: prev.storedKnowledge + memoryGain + (upgradeState.quantumMemory ? 1 : 0),
@@ -499,11 +326,68 @@ function App() {
     }))
     setResources({
       ...INITIAL_RESOURCES,
-      metal: INITIAL_RESOURCES.metal + memoryGain * 25,
-      energy: INITIAL_RESOURCES.energy + memoryGain * 12,
-      probes: INITIAL_RESOURCES.probes + memoryGain * 0.6,
+      metal: INITIAL_RESOURCES.metal + memoryGain * 32,
+      energy: INITIAL_RESOURCES.energy + memoryGain * 15,
+      probes: INITIAL_RESOURCES.probes + memoryGain * 0.9,
     })
     setLogs((prev) => [`Cycle rebooted. Memory shards retained: ${memoryGain}.`, ...prev].slice(0, 8))
+  }
+
+  const handleExportSave = () => {
+    try {
+      const save = buildSave({ resources, units, prestige, upgradeState, logs })
+      exportSaveFile(save)
+    } catch (e) {
+      console.warn('Export failed', e)
+    }
+  }
+
+  const handleImportChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const save = await importSaveFile(file)
+      const s = save.state
+      setResources(s.resources)
+      setUnits(s.units)
+      setPrestige(s.prestige)
+      setUpgradeState(s.upgradeState)
+      if (s.logs && s.logs.length) {
+        const loadedLogs = s.logs
+        setLogs((prev) => [...loadedLogs, ...prev].slice(0, 8))
+      }
+      setLastSavedAt(save.savedAt)
+      saveToLocalStorage(save)
+
+      const savedAtMs = Date.parse(save.savedAt)
+      if (!Number.isNaN(savedAtMs)) {
+        const offlineSeconds = Math.floor((Date.now() - savedAtMs) / 1000)
+        if (offlineSeconds > 0) {
+          const { resources: newResources, log } = simulateOfflineProgress(
+            s.resources,
+            s.units,
+            s.upgradeState,
+            s.prestige,
+            Math.min(offlineSeconds, 24 * 60 * 60),
+          )
+          setResources(newResources)
+          setLogs((prev) => [log, ...prev].slice(0, 8))
+        }
+      }
+    } catch (err) {
+      console.warn('Import failed', err)
+    }
+  }
+
+  const handleManualSave = () => {
+    try {
+      const save = buildSave({ resources, units, prestige, upgradeState, logs })
+      saveToLocalStorage(save)
+      setLastSavedAt(save.savedAt)
+      setLogs((prev) => ['Manual save created.', ...prev].slice(0, 8))
+    } catch (e) {
+      console.warn('Manual save failed', e)
+    }
   }
 
   return (
@@ -538,6 +422,16 @@ function App() {
             <div className="header-chip">Entropy {(resources.entropy * 100).toFixed(1)}%</div>
             <div className="header-chip accent">{formatNumber(resources.distance)} ly explored</div>
           </div>
+          <div className="save-controls">
+            <button onClick={handleExportSave}>Export</button>
+            <input ref={importInputRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImportChange} />
+            <button onClick={() => importInputRef?.current?.click()}>Import</button>
+            <label className="autosave-toggle">
+              <input type="checkbox" checked={autosave} onChange={(e) => setAutosave(e.target.checked)} /> Autosave
+            </label>
+            <button onClick={handleManualSave}>Save</button>
+            <div className="last-saved">Last saved: {lastSavedAt ? new Date(lastSavedAt).toLocaleString() : 'Never'}</div>
+          </div>
         </header>
 
         <section className="galaxy-section">
@@ -555,6 +449,20 @@ function App() {
                 }}
               />
             ))}
+            <div className="probe-swarm" aria-hidden="true">
+              {swarmSeed.current.slice(0, activeProbeCount).map((probe) => (
+                <span
+                  key={`probe-${probe.id}`}
+                  className="probe"
+                  style={{
+                    ['--angle' as string]: `${probe.angle}deg`,
+                    ['--radius' as string]: `${(probe.radius * orbitExpansion).toFixed(2)}%`,
+                    ['--duration' as string]: `${probe.duration}s`,
+                    ['--glow' as string]: `hsla(${probe.hue}, 90%, 70%, 0.9)`,
+                  }}
+                />
+              ))}
+            </div>
             <div
               className="exploration-wave"
               style={{
@@ -589,7 +497,7 @@ function App() {
               onClick={handleStabilize}
               disabled={!stabilizeAffordable}
             >
-              Stabilize Lattice (45 Data)
+              Stabilize Lattice ({formatCostLabel(STABILIZE_COST)})
             </button>
             <div className="milestone-tracker">
               <div className="milestone-card">

@@ -33,9 +33,43 @@ export default defineConfig([
       tseslint.configs.stylisticTypeChecked,
 
       // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
+    },
+  ])
+
+  ## GitHub Pages
+
+  This project is published at: https://deadronos.github.io/VanIdleProbes/
+
+  ### Deploy (automatic)
+
+  A GitHub Actions workflow is included at `.github/workflows/deploy-on-tag.yml`. To deploy a release, create and push a tag that starts with `v` (for example `v0.1.0`):
+
+  ```bash
+  git tag v0.1.0
+  git push origin v0.1.0
+  ```
+
+  The workflow will run `npm ci` and `npm run build`, upload the `dist/` folder and publish it to GitHub Pages. The Vite build `base` is already configured in `vite.config.ts` to `/VanIdleProbes/`, so assets are referenced correctly.
+
+  You can preview the production build locally:
+
+  ```bash
+  npm run build
+  npm run preview
+  ```
+
+  Or serve `dist/` with a static server:
+
+  ```bash
+  npx serve dist
+  ```
+
+  After the workflow finishes, the site will be available at:
+
+  https://deadronos.github.io/VanIdleProbes/
+
+  You can also trigger the deploy workflow manually from the Actions tab using the "Run workflow" button.
+  ````
         project: ['./tsconfig.node.json', './tsconfig.app.json'],
         tsconfigRootDir: import.meta.dirname,
       },
