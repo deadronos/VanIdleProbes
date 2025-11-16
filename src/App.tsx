@@ -70,8 +70,8 @@ const formatCostLabel = (cost: Cost) =>
 
 const distanceMilestones = [15, 40, 90, 180, 320]
 const dataMilestones = [60, 180, 420, 800]
-const PRESTIGE_REQUIREMENTS = { distance: 160, data: 900 }
-const STABILIZE_COST: Cost = { data: 45 }
+const PRESTIGE_REQUIREMENTS = { distance: 120, data: 650 }
+const STABILIZE_COST: Cost = { data: 35 }
 
 interface MilestoneProgress {
   previous: number
@@ -121,10 +121,27 @@ function App() {
     [],
   )
 
+  const swarmSeed = useRef(
+    Array.from({ length: 18 }, (_, idx) => ({
+      id: idx,
+      angle: Math.random() * 360,
+      radius: 18 + Math.random() * 18,
+      duration: 12 + Math.random() * 8,
+      hue: 170 + Math.random() * 120,
+    })),
+  )
+
   const productionPreview = useMemo(
     () => computeProduction(resources, units, upgradeState, prestige),
     [resources, units, upgradeState, prestige],
   )
+
+  const activeProbeCount = useMemo(
+    () => Math.max(3, Math.min(swarmSeed.current.length, Math.floor(resources.probes / 6))),
+    [resources.probes],
+  )
+
+  const orbitExpansion = useMemo(() => 1 + Math.min(resources.distance / 260, 1.6), [resources.distance])
 
   const distanceMilestoneProgress = useMemo(
     () => getMilestoneProgress(resources.distance, distanceMilestones),
@@ -138,22 +155,29 @@ function App() {
 
   const stabilizeAffordable = canAffordCost(resources, STABILIZE_COST)
 
+  const baseMemoryGain = useMemo(() => {
+    const distancePortion = Math.floor(resources.distance / 140)
+    const dataPortion = Math.floor(resources.data / 320)
+    const completionBurst =
+      resources.distance >= PRESTIGE_REQUIREMENTS.distance && resources.data >= PRESTIGE_REQUIREMENTS.data ? 1 : 0
+    return Math.max(2, distancePortion + dataPortion + completionBurst)
+  }, [resources.data, resources.distance])
+
   const prestigeProjection = useMemo(() => {
-    const baseGain = Math.max(1, Math.floor(resources.data / 450) + Math.floor(resources.distance / 200))
     const bonus = upgradeState.quantumMemory ? 1 : 0
-    const projectedGain = baseGain + bonus
+    const projectedGain = baseMemoryGain + bonus
     const projectedKnowledge = prestige.storedKnowledge + projectedGain
-    const currentMultiplier = 1 + prestige.cycles * 0.55 + prestige.storedKnowledge * 0.12
-    const nextMultiplier = 1 + (prestige.cycles + 1) * 0.55 + projectedKnowledge * 0.12
+    const currentMultiplier = 1 + prestige.cycles * 0.55 + prestige.storedKnowledge * 0.15
+    const nextMultiplier = 1 + (prestige.cycles + 1) * 0.55 + projectedKnowledge * 0.15
 
     return {
-      baseGain,
+      baseGain: baseMemoryGain,
       projectedGain,
       projectedKnowledge,
       currentMultiplier,
       nextMultiplier,
     }
-  }, [resources.data, resources.distance, prestige.cycles, prestige.storedKnowledge, upgradeState.quantumMemory])
+  }, [baseMemoryGain, prestige.cycles, prestige.storedKnowledge, upgradeState.quantumMemory])
 
   useEffect(() => {
     document.title = `Von Idle Probes • ${formatNumber(resources.probes)} probes`
@@ -290,7 +314,7 @@ function App() {
 
   const handlePrestige = () => {
     if (!prestigeReady) return
-    const memoryGain = Math.max(1, Math.floor(resources.data / 450) + Math.floor(resources.distance / 200))
+    const memoryGain = baseMemoryGain
     setPrestige((prev) => ({
       cycles: prev.cycles + 1,
       storedKnowledge: prev.storedKnowledge + memoryGain + (upgradeState.quantumMemory ? 1 : 0),
@@ -302,9 +326,9 @@ function App() {
     }))
     setResources({
       ...INITIAL_RESOURCES,
-      metal: INITIAL_RESOURCES.metal + memoryGain * 25,
-      energy: INITIAL_RESOURCES.energy + memoryGain * 12,
-      probes: INITIAL_RESOURCES.probes + memoryGain * 0.6,
+      metal: INITIAL_RESOURCES.metal + memoryGain * 32,
+      energy: INITIAL_RESOURCES.energy + memoryGain * 15,
+      probes: INITIAL_RESOURCES.probes + memoryGain * 0.9,
     })
     setLogs((prev) => [`Cycle rebooted. Memory shards retained: ${memoryGain}.`, ...prev].slice(0, 8))
   }
@@ -425,6 +449,20 @@ function App() {
                 }}
               />
             ))}
+            <div className="probe-swarm" aria-hidden="true">
+              {swarmSeed.current.slice(0, activeProbeCount).map((probe) => (
+                <span
+                  key={`probe-${probe.id}`}
+                  className="probe"
+                  style={{
+                    ['--angle' as string]: `${probe.angle}deg`,
+                    ['--radius' as string]: `${(probe.radius * orbitExpansion).toFixed(2)}%`,
+                    ['--duration' as string]: `${probe.duration}s`,
+                    ['--glow' as string]: `hsla(${probe.hue}, 90%, 70%, 0.9)`,
+                  }}
+                />
+              ))}
+            </div>
             <div
               className="exploration-wave"
               style={{
@@ -459,7 +497,7 @@ function App() {
               onClick={handleStabilize}
               disabled={!stabilizeAffordable}
             >
-              Stabilize Lattice (45 Data)
+              Stabilize Lattice ({formatCostLabel(STABILIZE_COST)})
             </button>
             <div className="milestone-tracker">
               <div className="milestone-card">
