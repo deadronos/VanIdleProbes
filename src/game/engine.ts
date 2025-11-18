@@ -19,6 +19,8 @@ export type UnitKey =
 export interface PrestigeState {
   cycles: number
   storedKnowledge: number
+  forks: number
+  primeArchives: number
 }
 
 export type UpgradeKey =
@@ -50,7 +52,16 @@ export const computeProduction = (
   upgrades: UpgradeState,
   prestige: PrestigeState,
 ): ProductionSnapshot => {
-  const cycleBoost = 1 + prestige.cycles * 0.55 + prestige.storedKnowledge * 0.15
+  const normalizedPrestige: PrestigeState = {
+    cycles: prestige.cycles ?? 0,
+    storedKnowledge: prestige.storedKnowledge ?? 0,
+    forks: prestige.forks ?? 0,
+    primeArchives: prestige.primeArchives ?? 0,
+  }
+
+  const resonanceBoost = 1 + normalizedPrestige.forks * 0.35 + normalizedPrestige.primeArchives * 0.22
+  const cycleBoost =
+    (1 + normalizedPrestige.cycles * 0.55 + normalizedPrestige.storedKnowledge * 0.15) * resonanceBoost
   const signalBonus = 1 + units.signalRelays * 0.22 + (upgrades.autonomy ? 0.42 : 0)
   const baseLatencyFactor =
     1 / (1 + Math.max(0, resources.distance - signalBonus * 105) / (210 + signalBonus * 90))
@@ -59,7 +70,11 @@ export const computeProduction = (
       ? baseLatencyFactor + (1 - baseLatencyFactor) * 0.25
       : baseLatencyFactor
   const entropyPressureBase = 0.01 + resources.distance / 9200
-  const entropyPressure = upgrades.stellarCartography ? entropyPressureBase * 0.82 : entropyPressureBase
+  const entropyDamping = Math.max(0.65, 1 - normalizedPrestige.primeArchives * 0.06)
+  const entropyPressure =
+    upgrades.stellarCartography || normalizedPrestige.primeArchives > 0
+      ? entropyPressureBase * Math.min(1, 0.82 * entropyDamping)
+      : entropyPressureBase * entropyDamping
   const entropyMitigation = units.stabilizers * 0.022 + (upgrades.stellarCartography ? 0.012 : 0)
   const entropyChange = entropyPressure - entropyMitigation
   const entropyPenalty = Math.max(
@@ -70,8 +85,8 @@ export const computeProduction = (
   const productionFactor = cycleBoost * latencyFactor * entropyPenalty * delayCompensation
   const energyMultiplier = upgrades.dysonSheath ? 1.42 : 1
   const probeMultiplier = upgrades.autoforge ? 1.55 : 1
-  const dataMultiplier = upgrades.archiveBloom ? 1.62 : 1
-  const cartographyExplorationBonus = upgrades.stellarCartography ? 1.14 : 1
+  const dataMultiplier = (upgrades.archiveBloom ? 1.62 : 1) * (1 + normalizedPrestige.primeArchives * 0.05)
+  const cartographyExplorationBonus = (upgrades.stellarCartography ? 1.14 : 1) * (1 + normalizedPrestige.forks * 0.04)
 
   const metal = (5.5 + units.harvesters * 11 + units.foundries * 2) * productionFactor
   const energy = (units.foundries * 7.2 * energyMultiplier + units.harvesters * 1.8) * productionFactor

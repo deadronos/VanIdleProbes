@@ -71,6 +71,7 @@ const formatCostLabel = (cost: Cost) =>
 const distanceMilestones = [15, 40, 90, 180, 320]
 const dataMilestones = [60, 180, 420, 800]
 const PRESTIGE_REQUIREMENTS = { distance: 120, data: 650 }
+const FORK_REQUIREMENTS = { cycles: 3, distance: 420, data: 1400 }
 const STABILIZE_COST: Cost = { data: 35 }
 
 interface MilestoneProgress {
@@ -104,6 +105,8 @@ function App() {
     'Origin node online. Awaiting replication directives.',
     'First probe awakens near a dying star.',
   ])
+
+  const [prestigeTab, setPrestigeTab] = useState<'cycle' | 'fork'>('cycle')
 
   const [autosave, setAutosave] = useState<boolean>(true)
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
@@ -160,15 +163,16 @@ function App() {
     const dataPortion = Math.floor(resources.data / 320)
     const completionBurst =
       resources.distance >= PRESTIGE_REQUIREMENTS.distance && resources.data >= PRESTIGE_REQUIREMENTS.data ? 1 : 0
-    return Math.max(2, distancePortion + dataPortion + completionBurst)
-  }, [resources.data, resources.distance])
+    const primeAmplifier = 1 + prestige.primeArchives * 0.08
+    return Math.max(2, Math.floor((distancePortion + dataPortion + completionBurst) * primeAmplifier))
+  }, [prestige.primeArchives, resources.data, resources.distance])
 
   const prestigeProjection = useMemo(() => {
     const bonus = upgradeState.quantumMemory ? 1 : 0
     const projectedGain = baseMemoryGain + bonus
     const projectedKnowledge = prestige.storedKnowledge + projectedGain
-    const currentMultiplier = 1 + prestige.cycles * 0.55 + prestige.storedKnowledge * 0.15
-    const nextMultiplier = 1 + (prestige.cycles + 1) * 0.55 + projectedKnowledge * 0.15
+    const currentMultiplier = (1 + prestige.cycles * 0.55 + prestige.storedKnowledge * 0.15) * resonanceBonus
+    const nextMultiplier = (1 + (prestige.cycles + 1) * 0.55 + projectedKnowledge * 0.15) * resonanceBonus
 
     return {
       baseGain: baseMemoryGain,
@@ -177,7 +181,36 @@ function App() {
       currentMultiplier,
       nextMultiplier,
     }
-  }, [baseMemoryGain, prestige.cycles, prestige.storedKnowledge, upgradeState.quantumMemory])
+  }, [baseMemoryGain, prestige.cycles, prestige.forks, prestige.primeArchives, prestige.storedKnowledge, upgradeState.quantumMemory])
+
+  const forkProgress = useMemo(() => {
+    const cycleProgress = Math.min(prestige.cycles / FORK_REQUIREMENTS.cycles, 1)
+    const distanceProgress = Math.min(resources.distance / FORK_REQUIREMENTS.distance, 1)
+    const dataProgress = Math.min(resources.data / FORK_REQUIREMENTS.data, 1)
+    return { cycleProgress, distanceProgress, dataProgress }
+  }, [prestige.cycles, resources.data, resources.distance])
+
+  const primeGain = useMemo(() => {
+    const cyclePortion = Math.max(0, prestige.cycles - 2)
+    const knowledgePortion = Math.floor(prestige.storedKnowledge / 30)
+    const distancePortion = Math.floor(resources.distance / 300)
+    return Math.max(1, cyclePortion + knowledgePortion + distancePortion)
+  }, [prestige.cycles, prestige.storedKnowledge, resources.distance])
+
+  const forkProjection = useMemo(
+    () => ({
+      gain: primeGain,
+      nextPrime: prestige.primeArchives + primeGain,
+      nextFork: prestige.forks + 1,
+    }),
+    [prestige.forks, prestige.primeArchives, primeGain],
+  )
+
+  const resonanceBonus = useMemo(() => 1 + prestige.forks * 0.35 + prestige.primeArchives * 0.22, [prestige.forks, prestige.primeArchives])
+  const projectedResonance = useMemo(
+    () => 1 + forkProjection.nextFork * 0.35 + forkProjection.nextPrime * 0.22,
+    [forkProjection.nextFork, forkProjection.nextPrime],
+  )
 
   useEffect(() => {
     document.title = `Von Idle Probes • ${formatNumber(resources.probes)} probes`
@@ -192,7 +225,7 @@ function App() {
       const s = save.state
       setResources(s.resources)
       setUnits(s.units)
-      setPrestige(s.prestige)
+      setPrestige({ ...INITIAL_PRESTIGE, ...s.prestige })
       setUpgradeState(s.upgradeState)
       if (s.logs && s.logs.length) {
         const loadedLogs = s.logs
@@ -312,12 +345,19 @@ function App() {
   const prestigeReady =
     resources.distance >= PRESTIGE_REQUIREMENTS.distance && resources.data >= PRESTIGE_REQUIREMENTS.data
 
+  const forkReady =
+    prestige.cycles >= FORK_REQUIREMENTS.cycles &&
+    resources.distance >= FORK_REQUIREMENTS.distance &&
+    resources.data >= FORK_REQUIREMENTS.data
+
   const handlePrestige = () => {
     if (!prestigeReady) return
     const memoryGain = baseMemoryGain
     setPrestige((prev) => ({
       cycles: prev.cycles + 1,
       storedKnowledge: prev.storedKnowledge + memoryGain + (upgradeState.quantumMemory ? 1 : 0),
+      forks: prev.forks,
+      primeArchives: prev.primeArchives,
     }))
     setUnits(INITIAL_UNITS)
     setUpgradeState((prev) => ({
@@ -331,6 +371,33 @@ function App() {
       probes: INITIAL_RESOURCES.probes + memoryGain * 0.9,
     })
     setLogs((prev) => [`Cycle rebooted. Memory shards retained: ${memoryGain}.`, ...prev].slice(0, 8))
+  }
+
+  const handleFork = () => {
+    if (!forkReady) return
+    const primeBoost = primeGain
+    setPrestige((prev) => ({
+      cycles: 0,
+      storedKnowledge: 0,
+      forks: prev.forks + 1,
+      primeArchives: prev.primeArchives + primeBoost,
+    }))
+    setUnits(INITIAL_UNITS)
+    setUpgradeState((prev) => ({
+      ...INITIAL_UPGRADES,
+      quantumMemory: prev.quantumMemory,
+    }))
+    setResources({
+      ...INITIAL_RESOURCES,
+      metal: INITIAL_RESOURCES.metal + primeBoost * 160,
+      energy: INITIAL_RESOURCES.energy + primeBoost * 75,
+      data: INITIAL_RESOURCES.data + primeBoost * 12,
+      probes: INITIAL_RESOURCES.probes + primeBoost * 3,
+    })
+    setLogs((prev) =>
+      [`Continuum forked. Prime Archives added: ${primeBoost}.`, ...prev].slice(0, 8),
+    )
+    setPrestigeTab('cycle')
   }
 
   const handleExportSave = () => {
@@ -350,7 +417,7 @@ function App() {
       const s = save.state
       setResources(s.resources)
       setUnits(s.units)
-      setPrestige(s.prestige)
+      setPrestige({ ...INITIAL_PRESTIGE, ...s.prestige })
       setUpgradeState(s.upgradeState)
       if (s.logs && s.logs.length) {
         const loadedLogs = s.logs
@@ -415,11 +482,14 @@ function App() {
             <div className="cycle-info">
               <span>Cycle {prestige.cycles + 1}</span>
               <span>Stored Knowledge: {formatNumber(prestige.storedKnowledge)}</span>
+              <span>Prime Archives: {formatNumber(prestige.primeArchives)}</span>
+              <span>Forks: {prestige.forks}</span>
             </div>
           </div>
           <div className="header-stats">
             <div className="header-chip">Latency {Math.round(productionPreview.latencyFactor * 100)}%</div>
             <div className="header-chip">Entropy {(resources.entropy * 100).toFixed(1)}%</div>
+            <div className="header-chip">Resonance {resonanceBonus.toFixed(2)}×</div>
             <div className="header-chip accent">{formatNumber(resources.distance)} ly explored</div>
           </div>
           <div className="save-controls">
@@ -655,64 +725,147 @@ function App() {
         </section>
 
         <section className="prestige-panel">
-          <div>
-            <h2>Recompile the Origin</h2>
-            <p>
-              Reboot the origin node to bake your discoveries into the next generation. Resets resources and structures
-              but grants lasting knowledge boosts.
-            </p>
-            <ul>
-              <li>
-                Requires {PRESTIGE_REQUIREMENTS.distance} ly explored and {PRESTIGE_REQUIREMENTS.data} data archived.
-              </li>
-              <li>Gain Stored Knowledge to accelerate future cycles.</li>
-              <li>Quantum Memory Loom persists between cycles.</li>
-            </ul>
-            <div className="prestige-progress-grid">
-              <div className="prestige-progress-block">
-                <div className="progress-header">
-                  <span>Exploration</span>
-                  <span>
-                    {formatNumber(Math.min(resources.distance, PRESTIGE_REQUIREMENTS.distance))} /
-                    {formatNumber(PRESTIGE_REQUIREMENTS.distance)} ly
-                  </span>
-                </div>
-                <div className="progress-bar">
-                  <div style={{ width: `${prestigeDistanceProgress * 100}%` }} />
-                </div>
-              </div>
-              <div className="prestige-progress-block">
-                <div className="progress-header">
-                  <span>Archives</span>
-                  <span>
-                    {formatNumber(Math.min(resources.data, PRESTIGE_REQUIREMENTS.data))} /
-                    {formatNumber(PRESTIGE_REQUIREMENTS.data)} data
-                  </span>
-                </div>
-                <div className="progress-bar">
-                  <div style={{ width: `${prestigeDataProgress * 100}%` }} />
-                </div>
-              </div>
-            </div>
-            <div className="prestige-stats">
-              <div>
-                <strong>Projected Memory Gain:</strong> {formatNumber(prestigeProjection.projectedGain)}
-                {prestigeProjection.projectedGain !== prestigeProjection.baseGain ? ' (includes Quantum Memory)' : ''}
-              </div>
-              <div>
-                <strong>Next Cycle Throughput:</strong> {prestigeProjection.nextMultiplier.toFixed(2)}×
-              </div>
-              <div>
-                <strong>Current Cycle Throughput:</strong> {prestigeProjection.currentMultiplier.toFixed(2)}×
-              </div>
-              <div>
-                <strong>Stored Knowledge After Reset:</strong> {formatNumber(prestigeProjection.projectedKnowledge)}
-              </div>
-            </div>
+          <div className="prestige-tabs">
+            <button className={prestigeTab === 'cycle' ? 'active' : ''} onClick={() => setPrestigeTab('cycle')}>
+              Cycle Reboot
+            </button>
+            <button className={prestigeTab === 'fork' ? 'active' : ''} onClick={() => setPrestigeTab('fork')}>
+              Continuum Fork
+            </button>
           </div>
-          <button className="prestige-button" onClick={handlePrestige} disabled={!prestigeReady}>
-            Initiate Ascension
-          </button>
+
+          {prestigeTab === 'cycle' ? (
+            <div className="prestige-content">
+              <div>
+                <h2>Recompile the Origin</h2>
+                <p>
+                  Reboot the origin node to bake your discoveries into the next generation. Resets resources and
+                  structures but grants lasting knowledge boosts amplified by Prime Archives.
+                </p>
+                <ul>
+                  <li>
+                    Requires {PRESTIGE_REQUIREMENTS.distance} ly explored and {PRESTIGE_REQUIREMENTS.data} data archived.
+                  </li>
+                  <li>Gain Stored Knowledge to accelerate future cycles.</li>
+                  <li>Quantum Memory Loom persists between cycles.</li>
+                </ul>
+                <div className="prestige-progress-grid">
+                  <div className="prestige-progress-block">
+                    <div className="progress-header">
+                      <span>Exploration</span>
+                      <span>
+                        {formatNumber(Math.min(resources.distance, PRESTIGE_REQUIREMENTS.distance))} /
+                        {formatNumber(PRESTIGE_REQUIREMENTS.distance)} ly
+                      </span>
+                    </div>
+                    <div className="progress-bar">
+                      <div style={{ width: `${prestigeDistanceProgress * 100}%` }} />
+                    </div>
+                  </div>
+                  <div className="prestige-progress-block">
+                    <div className="progress-header">
+                      <span>Archives</span>
+                      <span>
+                        {formatNumber(Math.min(resources.data, PRESTIGE_REQUIREMENTS.data))} /
+                        {formatNumber(PRESTIGE_REQUIREMENTS.data)} data
+                      </span>
+                    </div>
+                    <div className="progress-bar">
+                      <div style={{ width: `${prestigeDataProgress * 100}%` }} />
+                    </div>
+                  </div>
+                </div>
+                <div className="prestige-stats">
+                  <div>
+                    <strong>Projected Memory Gain:</strong> {formatNumber(prestigeProjection.projectedGain)}
+                    {prestigeProjection.projectedGain !== prestigeProjection.baseGain ? ' (includes Quantum Memory)' : ''}
+                  </div>
+                  <div>
+                    <strong>Next Cycle Throughput:</strong> {prestigeProjection.nextMultiplier.toFixed(2)}×
+                  </div>
+                  <div>
+                    <strong>Current Cycle Throughput:</strong> {prestigeProjection.currentMultiplier.toFixed(2)}×
+                  </div>
+                  <div>
+                    <strong>Stored Knowledge After Reset:</strong> {formatNumber(prestigeProjection.projectedKnowledge)}
+                  </div>
+                </div>
+              </div>
+              <button className="prestige-button" onClick={handlePrestige} disabled={!prestigeReady}>
+                Initiate Ascension
+              </button>
+            </div>
+          ) : (
+            <div className="prestige-content">
+              <div>
+                <h2>Fork the Continuum</h2>
+                <p>
+                  Splinter your network into a higher-order seed. Consumes all cycles and knowledge to mint permanent
+                  Prime Archives and reset resonance.
+                </p>
+                <ul>
+                  <li>Requires Cycle {FORK_REQUIREMENTS.cycles + 1} with deeper exploration and data stores.</li>
+                  <li>Prime Archives permanently amplify production, data decoding, and entropy damping.</li>
+                  <li>Forking also grants fresh starting stockpiles proportional to your Prime gain.</li>
+                </ul>
+                <div className="prestige-progress-grid">
+                  <div className="prestige-progress-block">
+                    <div className="progress-header">
+                      <span>Cycle Depth</span>
+                      <span>
+                        {Math.min(prestige.cycles + 1, FORK_REQUIREMENTS.cycles + 1)} /
+                        {FORK_REQUIREMENTS.cycles + 1} cycles
+                      </span>
+                    </div>
+                    <div className="progress-bar">
+                      <div style={{ width: `${forkProgress.cycleProgress * 100}%` }} />
+                    </div>
+                  </div>
+                  <div className="prestige-progress-block">
+                    <div className="progress-header">
+                      <span>Signal Reach</span>
+                      <span>
+                        {formatNumber(Math.min(resources.distance, FORK_REQUIREMENTS.distance))} /
+                        {formatNumber(FORK_REQUIREMENTS.distance)} ly
+                      </span>
+                    </div>
+                    <div className="progress-bar">
+                      <div style={{ width: `${forkProgress.distanceProgress * 100}%` }} />
+                    </div>
+                  </div>
+                  <div className="prestige-progress-block">
+                    <div className="progress-header">
+                      <span>Archive Density</span>
+                      <span>
+                        {formatNumber(Math.min(resources.data, FORK_REQUIREMENTS.data))} /
+                        {formatNumber(FORK_REQUIREMENTS.data)} data
+                      </span>
+                    </div>
+                    <div className="progress-bar">
+                      <div style={{ width: `${forkProgress.dataProgress * 100}%` }} />
+                    </div>
+                  </div>
+                </div>
+                <div className="prestige-stats">
+                  <div>
+                    <strong>Prime Archives Gained:</strong> {formatNumber(forkProjection.gain)}
+                  </div>
+                  <div>
+                    <strong>Prime Archives After Fork:</strong> {formatNumber(forkProjection.nextPrime)}
+                  </div>
+                  <div>
+                    <strong>Resonance After Fork:</strong> {projectedResonance.toFixed(2)}×
+                  </div>
+                  <div>
+                    <strong>Fork Count:</strong> {forkProjection.nextFork}
+                  </div>
+                </div>
+              </div>
+              <button className="prestige-button" onClick={handleFork} disabled={!forkReady}>
+                Fork the Continuum
+              </button>
+            </div>
+          )}
         </section>
 
         <section className="log-section">
