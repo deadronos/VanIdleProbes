@@ -167,6 +167,8 @@ function App() {
     return Math.max(2, Math.floor((distancePortion + dataPortion + completionBurst) * primeAmplifier))
   }, [prestige.primeArchives, resources.data, resources.distance])
 
+  const resonanceBonus = useMemo(() => 1 + prestige.forks * 0.35 + prestige.primeArchives * 0.22, [prestige.forks, prestige.primeArchives])
+
   const prestigeProjection = useMemo(() => {
     const bonus = upgradeState.quantumMemory ? 1 : 0
     const projectedGain = baseMemoryGain + bonus
@@ -206,7 +208,6 @@ function App() {
     [prestige.forks, prestige.primeArchives, primeGain],
   )
 
-  const resonanceBonus = useMemo(() => 1 + prestige.forks * 0.35 + prestige.primeArchives * 0.22, [prestige.forks, prestige.primeArchives])
   const projectedResonance = useMemo(
     () => 1 + forkProjection.nextFork * 0.35 + forkProjection.nextPrime * 0.22,
     [forkProjection.nextFork, forkProjection.nextPrime],
