@@ -624,9 +624,8 @@
 
 .prestige-panel {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 2rem;
+  flex-direction: column;
+  gap: 1.5rem;
   background: linear-gradient(135deg, rgba(12, 18, 40, 0.8), rgba(35, 62, 120, 0.7));
   padding: 2rem;
   border-radius: 20px;
@@ -655,6 +654,40 @@
 
 .prestige-stats strong {
   color: rgba(122, 255, 237, 0.92);
+}
+
+.prestige-tabs {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.prestige-tabs button {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(122, 255, 237, 0.35);
+  background: rgba(10, 18, 38, 0.8);
+  color: #d8e7ff;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.prestige-tabs button.active {
+  background: linear-gradient(135deg, rgba(255, 97, 220, 0.9), rgba(122, 255, 237, 0.9));
+  color: #0b0f1d;
+  box-shadow: 0 12px 30px rgba(122, 255, 237, 0.35);
+}
+
+.prestige-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.prestige-content ul {
+  margin-top: 0.6rem;
 }
 
 .prestige-button {
