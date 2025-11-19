@@ -19,6 +19,8 @@ type UnitKey =
 interface PrestigeState {
   cycles: number
   storedKnowledge: number
+  forks: number
+  primeArchives: number
 }
 
 type UpgradeKey =
@@ -53,6 +55,8 @@ const INITIAL_UNITS: Record<UnitKey, number> = {
 const INITIAL_PRESTIGE: PrestigeState = {
   cycles: 0,
   storedKnowledge: 0,
+  forks: 0,
+  primeArchives: 0,
 }
 
 const INITIAL_UPGRADES: Record<string, boolean> = {
@@ -64,11 +68,11 @@ const INITIAL_UPGRADES: Record<string, boolean> = {
   stellarCartography: false,
 }
 
-export const CURRENT_SAVE_VERSION = 1
-export const SAVE_KEY = 'vanidleprobes.save.v1'
+export const CURRENT_SAVE_VERSION = 2
+export const SAVE_KEY = 'vanidleprobes.save.v2'
 
-export interface SaveV1 {
-  version: 1
+export interface SaveV2 {
+  version: 2
   savedAt: string
   meta: {
     appVersion: string
@@ -83,16 +87,16 @@ export interface SaveV1 {
 }
 
 export const buildSave = (
-  state: SaveV1['state'],
+  state: SaveV2['state'],
   appVersion = '0.0.0',
-): SaveV1 => ({
+): SaveV2 => ({
   version: CURRENT_SAVE_VERSION,
   savedAt: new Date().toISOString(),
   meta: { appVersion },
   state,
 })
 
-export const saveToLocalStorage = (save: SaveV1) => {
+export const saveToLocalStorage = (save: SaveV2) => {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(save))
   } catch (e) {
@@ -111,7 +115,7 @@ export const loadFromLocalStorage = (): unknown | null => {
   }
 }
 
-export const exportSaveFile = (save: SaveV1, filename = `vanidleprobes-save-${save.savedAt}.json`) => {
+export const exportSaveFile = (save: SaveV2, filename = `vanidleprobes-save-${save.savedAt}.json`) => {
   const blob = new Blob([JSON.stringify(save, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -123,13 +127,13 @@ export const exportSaveFile = (save: SaveV1, filename = `vanidleprobes-save-${sa
   URL.revokeObjectURL(url)
 }
 
-export const importSaveFile = async (file: File): Promise<SaveV1> => {
+export const importSaveFile = async (file: File): Promise<SaveV2> => {
   const text = await file.text()
   const parsed = JSON.parse(text)
   return migrateSave(parsed)
 }
 
-export const migrate_v0_to_v1 = (raw: unknown): SaveV1 => {
+export const migrate_v0_to_v1 = (raw: unknown): SaveV2 => {
   const rawObj = (raw as Record<string, unknown>) ?? {}
   const stateCandidate = (rawObj.state as Record<string, unknown>) ?? rawObj
 
@@ -155,6 +159,8 @@ export const migrate_v0_to_v1 = (raw: unknown): SaveV1 => {
   const prestige = {
     cycles: (prestigeRaw.cycles as number) ?? INITIAL_PRESTIGE.cycles,
     storedKnowledge: (prestigeRaw.storedKnowledge as number) ?? INITIAL_PRESTIGE.storedKnowledge,
+    forks: (prestigeRaw.forks as number) ?? INITIAL_PRESTIGE.forks,
+    primeArchives: (prestigeRaw.primeArchives as number) ?? INITIAL_PRESTIGE.primeArchives,
   }
 
   const upgradeStateRaw = (stateCandidate.upgradeState as Record<string, unknown>) ?? {}
@@ -166,7 +172,7 @@ export const migrate_v0_to_v1 = (raw: unknown): SaveV1 => {
 
   const logs = (stateCandidate.logs as string[]) ?? []
 
-  const save: SaveV1 = {
+  const save: SaveV2 = {
     version: CURRENT_SAVE_VERSION,
     savedAt: new Date().toISOString(),
     meta: { appVersion: '0.0.0' },
@@ -182,15 +188,34 @@ export const migrate_v0_to_v1 = (raw: unknown): SaveV1 => {
   return save
 }
 
-export const migrateSave = (raw: unknown): SaveV1 => {
+export const migrate_v1_to_v2 = (raw: unknown): SaveV2 => {
+  const previous = migrate_v0_to_v1(raw)
+  return {
+    ...previous,
+    version: 2,
+    state: {
+      ...previous.state,
+      prestige: {
+        ...previous.state.prestige,
+        forks: 0,
+        primeArchives: 0,
+      },
+    },
+  }
+}
+
+export const migrateSave = (raw: unknown): SaveV2 => {
   if (!raw) throw new Error('No save data provided')
   const rawObj = raw as Record<string, unknown>
   const ver = Number(rawObj.version)
   if (!Number.isFinite(ver) || ver < 1) {
     return migrate_v0_to_v1(raw)
   }
+  if (ver === 1) {
+    return migrate_v1_to_v2(raw)
+  }
   if (ver === CURRENT_SAVE_VERSION) {
-    return raw as SaveV1
+    return raw as SaveV2
   }
   // Future migration chain would go here
   throw new Error(`Unsupported save version: ${ver}`)

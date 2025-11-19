@@ -54,6 +54,8 @@ export interface UpgradeConfig {
 export interface PrestigeState {
   cycles: number
   storedKnowledge: number
+  forks: number
+  primeArchives: number
 }
 
 export type UpgradeState = Record<UpgradeKey, boolean>
@@ -79,6 +81,8 @@ export const INITIAL_UNITS: Record<UnitKey, number> = {
 export const INITIAL_PRESTIGE: PrestigeState = {
   cycles: 0,
   storedKnowledge: 0,
+  forks: 0,
+  primeArchives: 0,
 }
 
 export const INITIAL_UPGRADES: Record<UpgradeKey, boolean> = {
