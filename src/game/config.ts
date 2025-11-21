@@ -67,7 +67,7 @@ export const INITIAL_RESOURCES: ResourceState = {
   probes: 6,
   entropy: 0.03,
   distance: 0,
-}
+};
 
 export const INITIAL_UNITS: Record<UnitKey, number> = {
   harvesters: 2,
@@ -76,14 +76,14 @@ export const INITIAL_UNITS: Record<UnitKey, number> = {
   archives: 0,
   signalRelays: 0,
   stabilizers: 0,
-}
+};
 
 export const INITIAL_PRESTIGE: PrestigeState = {
   cycles: 0,
   storedKnowledge: 0,
   forks: 0,
   primeArchives: 0,
-}
+};
 
 export const INITIAL_UPGRADES: Record<UpgradeKey, boolean> = {
   autonomy: false,
@@ -92,7 +92,7 @@ export const INITIAL_UPGRADES: Record<UpgradeKey, boolean> = {
   archiveBloom: false,
   quantumMemory: false,
   stellarCartography: false,
-}
+};
 
 export const UNIT_CONFIG: Record<UnitKey, UnitConfig> = {
   harvesters: {
@@ -143,7 +143,7 @@ export const UNIT_CONFIG: Record<UnitKey, UnitConfig> = {
     baseCost: { metal: 280, energy: 185, data: 38 },
     costGrowth: 1.2,
   },
-}
+};
 
 export const UPGRADE_CONFIG: Record<UpgradeKey, UpgradeConfig> = {
   autonomy: {
@@ -193,4 +193,4 @@ export const UPGRADE_CONFIG: Record<UpgradeKey, UpgradeConfig> = {
     cost: { data: 440, energy: 420 },
     requiresCycle: 2,
   },
-}
+};

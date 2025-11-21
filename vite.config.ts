@@ -1,9 +1,9 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
 // https://vite.dev/config/
 export default defineConfig(({ command }) => {
-  const isBuild = command === 'build'
+  const isBuild = command === 'build';
 
   return {
     // When building for GitHub Pages project site, assets should be served
@@ -26,5 +26,5 @@ export default defineConfig(({ command }) => {
     ssr: {
       noExternal: [/src\/game\/.*/],
     },
-  }
-})
+  };
+});

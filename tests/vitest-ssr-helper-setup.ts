@@ -7,16 +7,16 @@
 // Provide a global fallback so bare identifier usage may resolve to something
 ;(function ensureGlobalHelper() {
   try {
-    const g = globalThis as any
-    g.__vite_ssr_exports__ = g.__vite_ssr_exports__ ?? {}
+    const g = globalThis as any;
+    g.__vite_ssr_exports__ = g.__vite_ssr_exports__ ?? {};
     if (!g.__vite_ssr_exportName__) {
       g.__vite_ssr_exportName__ = function (name: string, getter: () => any) {
         Object.defineProperty(g.__vite_ssr_exports__, name, {
           enumerable: true,
           configurable: true,
           get: getter,
-        })
-      }
+        });
+      };
     }
   } catch {
     // ignore
@@ -29,31 +29,31 @@
 ;(async function tryPatchViteNode() {
   try {
     // dynamic import wrapped in an async IIFE to avoid top-level await
-    const mod = await import('vite-node/client').catch(() => null)
+    const mod = await import('vite-node/client').catch(() => null);
     if (mod && mod.ViteNodeRunner) {
-      const ViteNodeRunner = (mod as any).ViteNodeRunner
-      const orig = ViteNodeRunner.prototype.prepareContext
+      const ViteNodeRunner = (mod as any).ViteNodeRunner;
+      const orig = ViteNodeRunner.prototype.prepareContext;
       ViteNodeRunner.prototype.prepareContext = function (ctx: any) {
-        ctx = ctx || {}
-        ctx.__vite_ssr_exports__ = ctx.__vite_ssr_exports__ ?? {}
+        ctx = ctx || {};
+        ctx.__vite_ssr_exports__ = ctx.__vite_ssr_exports__ ?? {};
         if (!ctx.__vite_ssr_exportName__) {
           ctx.__vite_ssr_exportName__ = function (name: string, getter: () => any) {
             Object.defineProperty(ctx.__vite_ssr_exports__, name, {
               enumerable: true,
               configurable: true,
               get: getter,
-            })
-          }
+            });
+          };
         }
         if (!ctx.__vite_ssr_import__) {
-          ctx.__vite_ssr_import__ = (p: string) => import(p)
+          ctx.__vite_ssr_import__ = (p: string) => import(p);
         }
-        return orig ? orig.call(this, ctx) : ctx
-      }
+        return orig ? orig.call(this, ctx) : ctx;
+      };
     }
   } catch {
     // best-effort shim — ignore failures to avoid interfering with unrelated setups
   }
-})()
+})();
 
-export {}
+export {};

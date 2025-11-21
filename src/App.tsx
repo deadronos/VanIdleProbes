@@ -1,78 +1,78 @@
-import { useEffect, useMemo, useState, useRef } from 'react'
-import './App.css'
-import type { ResourceKey, ResourceState, UnitKey, UpgradeKey, PrestigeState, UpgradeState, Cost } from './game/config'
-import { INITIAL_RESOURCES, INITIAL_UNITS, INITIAL_PRESTIGE, INITIAL_UPGRADES, UNIT_CONFIG, UPGRADE_CONFIG } from './game/config'
-import { computeProduction, simulateOfflineProgress } from './game/engine'
-import { buildSave, saveToLocalStorage, loadFromLocalStorage, exportSaveFile, importSaveFile, migrateSave } from './game/save'
+import { useEffect, useMemo, useState, useRef } from 'react';
+import './App.css';
+import type { ResourceKey, ResourceState, UnitKey, UpgradeKey, PrestigeState, UpgradeState, Cost } from './game/config';
+import { INITIAL_RESOURCES, INITIAL_UNITS, INITIAL_PRESTIGE, INITIAL_UPGRADES, UNIT_CONFIG, UPGRADE_CONFIG } from './game/config';
+import { computeProduction, simulateOfflineProgress } from './game/engine';
+import { buildSave, saveToLocalStorage, loadFromLocalStorage, exportSaveFile, importSaveFile, migrateSave } from './game/save';
 
-const TICK_MS = 250
-const TICK_RATE = TICK_MS / 1000
+const TICK_MS = 250;
+const TICK_RATE = TICK_MS / 1000;
 
 const formatNumber = (value: number) => {
   if (value >= 1_000_000_000) {
-    return `${(value / 1_000_000_000).toFixed(2)}b`
+    return `${(value / 1_000_000_000).toFixed(2)}b`;
   }
   if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(2)}m`
+    return `${(value / 1_000_000).toFixed(2)}m`;
   }
   if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(2)}k`
+    return `${(value / 1_000).toFixed(2)}k`;
   }
   if (value >= 100) {
-    return value.toFixed(1)
+    return value.toFixed(1);
   }
-  return value.toFixed(2)
-}
+  return value.toFixed(2);
+};
 
 const canAffordCost = (resources: ResourceState, cost: Cost) =>
   (Object.entries(cost) as [ResourceKey, number][]).every(([key, value]) =>
     value ? resources[key] >= value : true,
-  )
+  );
 
 const applyCost = (resources: ResourceState, cost: Cost) => {
-  const updated = { ...resources }
+  const updated = { ...resources };
   for (const [key, value] of Object.entries(cost) as [ResourceKey, number][]) {
     if (value) {
-      updated[key] -= value
+      updated[key] -= value;
     }
   }
-  return updated
-}
+  return updated;
+};
 
 const getUnitCost = (key: UnitKey, owned: number) => {
-  const config = UNIT_CONFIG[key]
-  const multiplier = Math.pow(config.costGrowth, owned)
+  const config = UNIT_CONFIG[key];
+  const multiplier = Math.pow(config.costGrowth, owned);
   return Object.fromEntries(
     Object.entries(config.baseCost).map(([resource, value]) => [resource, value * multiplier]),
-  ) as Cost
-}
+  ) as Cost;
+};
 // Use `computeProduction` and `ProductionSnapshot` from `game/engine`.
 
-const resourceOrder: ResourceKey[] = ['metal', 'energy', 'probes', 'data']
+const resourceOrder: ResourceKey[] = ['metal', 'energy', 'probes', 'data'];
 const resourceLabels: Record<ResourceKey, string> = {
   metal: 'Alloy Mass',
   energy: 'Stellar Energy',
   probes: 'Active Probes',
   data: 'Archived Data',
-}
+};
 const resourceFlavour: Record<ResourceKey, string> = {
   metal: 'Captured asteroid matter feeding the foundries.',
   energy: 'Refined stellar flux powering the network.',
   probes: 'Autonomous Von Neumann agents exploring the expanse.',
   data: 'Crystalline memory encoded from every contact.',
-}
+};
 
 const formatCostLabel = (cost: Cost) =>
   (Object.entries(cost) as [ResourceKey, number][])
     .filter(([, value]) => value && value > 0)
     .map(([resource, value]) => `${resourceLabels[resource as ResourceKey]} ${formatNumber(value)}`)
-    .join(' • ')
+    .join(' • ');
 
-const distanceMilestones = [15, 40, 90, 180, 320]
-const dataMilestones = [60, 180, 420, 800]
-const PRESTIGE_REQUIREMENTS = { distance: 120, data: 650 }
-const FORK_REQUIREMENTS = { cycles: 3, distance: 420, data: 1400 }
-const STABILIZE_COST: Cost = { data: 35 }
+const distanceMilestones = [15, 40, 90, 180, 320];
+const dataMilestones = [60, 180, 420, 800];
+const PRESTIGE_REQUIREMENTS = { distance: 120, data: 650 };
+const FORK_REQUIREMENTS = { cycles: 3, distance: 420, data: 1400 };
+const STABILIZE_COST: Cost = { data: 35 };
 
 interface MilestoneProgress {
   previous: number
@@ -82,35 +82,35 @@ interface MilestoneProgress {
 }
 
 const getMilestoneProgress = (value: number, milestones: number[]): MilestoneProgress => {
-  const nextIndex = milestones.findIndex((milestone) => milestone > value)
+  const nextIndex = milestones.findIndex((milestone) => milestone > value);
   if (nextIndex === -1) {
-    const previous = milestones[milestones.length - 1] ?? 0
-    return { previous, next: undefined, progress: 1, span: 1 }
+    const previous = milestones[milestones.length - 1] ?? 0;
+    return { previous, next: undefined, progress: 1, span: 1 };
   }
 
-  const previous = nextIndex > 0 ? milestones[nextIndex - 1] : 0
-  const next = milestones[nextIndex]
-  const span = next - previous || 1
-  const progress = Math.min(1, Math.max(0, (value - previous) / span))
+  const previous = nextIndex > 0 ? milestones[nextIndex - 1] : 0;
+  const next = milestones[nextIndex];
+  const span = next - previous || 1;
+  const progress = Math.min(1, Math.max(0, (value - previous) / span));
 
-  return { previous, next, progress, span }
-}
+  return { previous, next, progress, span };
+};
 
 function App() {
-  const [resources, setResources] = useState<ResourceState>(INITIAL_RESOURCES)
-  const [units, setUnits] = useState<Record<UnitKey, number>>(INITIAL_UNITS)
-  const [prestige, setPrestige] = useState<PrestigeState>(INITIAL_PRESTIGE)
-  const [upgradeState, setUpgradeState] = useState<UpgradeState>(INITIAL_UPGRADES)
+  const [resources, setResources] = useState<ResourceState>(INITIAL_RESOURCES);
+  const [units, setUnits] = useState<Record<UnitKey, number>>(INITIAL_UNITS);
+  const [prestige, setPrestige] = useState<PrestigeState>(INITIAL_PRESTIGE);
+  const [upgradeState, setUpgradeState] = useState<UpgradeState>(INITIAL_UPGRADES);
   const [logs, setLogs] = useState<string[]>([
     'Origin node online. Awaiting replication directives.',
     'First probe awakens near a dying star.',
-  ])
+  ]);
 
-  const [prestigeTab, setPrestigeTab] = useState<'cycle' | 'fork'>('cycle')
+  const [prestigeTab, setPrestigeTab] = useState<'cycle' | 'fork'>('cycle');
 
-  const [autosave, setAutosave] = useState<boolean>(true)
-  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
-  const importInputRef = useRef<HTMLInputElement | null>(null)
+  const [autosave, setAutosave] = useState<boolean>(true);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const starfield = useMemo(
     () =>
@@ -122,7 +122,7 @@ function App() {
         delay: Math.random() * 6,
       })),
     [],
-  )
+  );
 
   const swarmSeed = useRef(
     Array.from({ length: 18 }, (_, idx) => ({
@@ -132,49 +132,49 @@ function App() {
       duration: 12 + Math.random() * 8,
       hue: 170 + Math.random() * 120,
     })),
-  )
+  );
 
   const productionPreview = useMemo(
     () => computeProduction(resources, units, upgradeState, prestige),
     [resources, units, upgradeState, prestige],
-  )
+  );
 
   const activeProbeCount = useMemo(
     () => Math.max(3, Math.min(swarmSeed.current.length, Math.floor(resources.probes / 6))),
     [resources.probes],
-  )
+  );
 
-  const orbitExpansion = useMemo(() => 1 + Math.min(resources.distance / 260, 1.6), [resources.distance])
+  const orbitExpansion = useMemo(() => 1 + Math.min(resources.distance / 260, 1.6), [resources.distance]);
 
   const distanceMilestoneProgress = useMemo(
     () => getMilestoneProgress(resources.distance, distanceMilestones),
     [resources.distance],
-  )
+  );
 
   const dataMilestoneProgress = useMemo(
     () => getMilestoneProgress(resources.data, dataMilestones),
     [resources.data],
-  )
+  );
 
-  const stabilizeAffordable = canAffordCost(resources, STABILIZE_COST)
+  const stabilizeAffordable = canAffordCost(resources, STABILIZE_COST);
 
   const baseMemoryGain = useMemo(() => {
-    const distancePortion = Math.floor(resources.distance / 140)
-    const dataPortion = Math.floor(resources.data / 320)
+    const distancePortion = Math.floor(resources.distance / 140);
+    const dataPortion = Math.floor(resources.data / 320);
     const completionBurst =
-      resources.distance >= PRESTIGE_REQUIREMENTS.distance && resources.data >= PRESTIGE_REQUIREMENTS.data ? 1 : 0
-    const primeAmplifier = 1 + prestige.primeArchives * 0.08
-    return Math.max(2, Math.floor((distancePortion + dataPortion + completionBurst) * primeAmplifier))
-  }, [prestige.primeArchives, resources.data, resources.distance])
+      resources.distance >= PRESTIGE_REQUIREMENTS.distance && resources.data >= PRESTIGE_REQUIREMENTS.data ? 1 : 0;
+    const primeAmplifier = 1 + prestige.primeArchives * 0.08;
+    return Math.max(2, Math.floor((distancePortion + dataPortion + completionBurst) * primeAmplifier));
+  }, [prestige.primeArchives, resources.data, resources.distance]);
 
-  const resonanceBonus = 1 + prestige.forks * 0.35 + prestige.primeArchives * 0.22
+  const resonanceBonus = 1 + prestige.forks * 0.35 + prestige.primeArchives * 0.22;
 
   const prestigeProjection = useMemo(() => {
-    const bonus = upgradeState.quantumMemory ? 1 : 0
-    const projectedGain = baseMemoryGain + bonus
-    const projectedKnowledge = prestige.storedKnowledge + projectedGain
-    const currentMultiplier = (1 + prestige.cycles * 0.55 + prestige.storedKnowledge * 0.15) * resonanceBonus
-    const nextMultiplier = (1 + (prestige.cycles + 1) * 0.55 + projectedKnowledge * 0.15) * resonanceBonus
+    const bonus = upgradeState.quantumMemory ? 1 : 0;
+    const projectedGain = baseMemoryGain + bonus;
+    const projectedKnowledge = prestige.storedKnowledge + projectedGain;
+    const currentMultiplier = (1 + prestige.cycles * 0.55 + prestige.storedKnowledge * 0.15) * resonanceBonus;
+    const nextMultiplier = (1 + (prestige.cycles + 1) * 0.55 + projectedKnowledge * 0.15) * resonanceBonus;
 
     return {
       baseGain: baseMemoryGain,
@@ -182,22 +182,22 @@ function App() {
       projectedKnowledge,
       currentMultiplier,
       nextMultiplier,
-    }
-  }, [baseMemoryGain, prestige.cycles, prestige.storedKnowledge, upgradeState.quantumMemory, resonanceBonus])
+    };
+  }, [baseMemoryGain, prestige.cycles, prestige.storedKnowledge, upgradeState.quantumMemory, resonanceBonus]);
 
   const forkProgress = useMemo(() => {
-    const cycleProgress = Math.min(prestige.cycles / FORK_REQUIREMENTS.cycles, 1)
-    const distanceProgress = Math.min(resources.distance / FORK_REQUIREMENTS.distance, 1)
-    const dataProgress = Math.min(resources.data / FORK_REQUIREMENTS.data, 1)
-    return { cycleProgress, distanceProgress, dataProgress }
-  }, [prestige.cycles, resources.data, resources.distance])
+    const cycleProgress = Math.min(prestige.cycles / FORK_REQUIREMENTS.cycles, 1);
+    const distanceProgress = Math.min(resources.distance / FORK_REQUIREMENTS.distance, 1);
+    const dataProgress = Math.min(resources.data / FORK_REQUIREMENTS.data, 1);
+    return { cycleProgress, distanceProgress, dataProgress };
+  }, [prestige.cycles, resources.data, resources.distance]);
 
   const primeGain = useMemo(() => {
-    const cyclePortion = Math.max(0, prestige.cycles - 2)
-    const knowledgePortion = Math.floor(prestige.storedKnowledge / 30)
-    const distancePortion = Math.floor(resources.distance / 300)
-    return Math.max(1, cyclePortion + knowledgePortion + distancePortion)
-  }, [prestige.cycles, prestige.storedKnowledge, resources.distance])
+    const cyclePortion = Math.max(0, prestige.cycles - 2);
+    const knowledgePortion = Math.floor(prestige.storedKnowledge / 30);
+    const distancePortion = Math.floor(resources.distance / 300);
+    return Math.max(1, cyclePortion + knowledgePortion + distancePortion);
+  }, [prestige.cycles, prestige.storedKnowledge, resources.distance]);
 
   const forkProjection = useMemo(
     () => ({
@@ -206,37 +206,37 @@ function App() {
       nextFork: prestige.forks + 1,
     }),
     [prestige.forks, prestige.primeArchives, primeGain],
-  )
+  );
 
   const projectedResonance = useMemo(
     () => 1 + forkProjection.nextFork * 0.35 + forkProjection.nextPrime * 0.22,
     [forkProjection.nextFork, forkProjection.nextPrime],
-  )
+  );
 
   useEffect(() => {
-    document.title = `Von Idle Probes • ${formatNumber(resources.probes)} probes`
-  }, [resources.probes])
+    document.title = `Von Idle Probes • ${formatNumber(resources.probes)} probes`;
+  }, [resources.probes]);
 
   // On mount: load save from localStorage (with migration) and apply offline progress
   useEffect(() => {
     try {
-      const raw = loadFromLocalStorage()
-      if (!raw) return
-      const save = migrateSave(raw)
-      const s = save.state
-      setResources(s.resources)
-      setUnits(s.units)
-      setPrestige({ ...INITIAL_PRESTIGE, ...s.prestige })
-      setUpgradeState(s.upgradeState)
+      const raw = loadFromLocalStorage();
+      if (!raw) return;
+      const save = migrateSave(raw);
+      const s = save.state;
+      setResources(s.resources);
+      setUnits(s.units);
+      setPrestige({ ...INITIAL_PRESTIGE, ...s.prestige });
+      setUpgradeState(s.upgradeState);
       if (s.logs && s.logs.length) {
-        const loadedLogs = s.logs
-        setLogs((prev) => [...loadedLogs, ...prev].slice(0, 8))
+        const loadedLogs = s.logs;
+        setLogs((prev) => [...loadedLogs, ...prev].slice(0, 8));
       }
-      setLastSavedAt(save.savedAt)
+      setLastSavedAt(save.savedAt);
 
-      const savedAtMs = Date.parse(save.savedAt)
+      const savedAtMs = Date.parse(save.savedAt);
       if (!Number.isNaN(savedAtMs)) {
-        const offlineSeconds = Math.floor((Date.now() - savedAtMs) / 1000)
+        const offlineSeconds = Math.floor((Date.now() - savedAtMs) / 1000);
         if (offlineSeconds > 0) {
           const { resources: newResources, log } = simulateOfflineProgress(
             s.resources,
@@ -244,21 +244,21 @@ function App() {
             s.upgradeState,
             s.prestige,
             Math.min(offlineSeconds, 24 * 60 * 60),
-          )
-          setResources(newResources)
-          setLogs((prev) => [log, ...prev].slice(0, 8))
+          );
+          setResources(newResources);
+          setLogs((prev) => [log, ...prev].slice(0, 8));
         }
       }
     } catch {
       // ignore malformed saves
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const messages: string[] = []
+      const messages: string[] = [];
       setResources((prev) => {
-        const production = computeProduction(prev, units, upgradeState, prestige)
+        const production = computeProduction(prev, units, upgradeState, prestige);
         const next: ResourceState = {
           metal: prev.metal + production.metal * TICK_RATE,
           energy: prev.energy + production.energy * TICK_RATE,
@@ -266,170 +266,170 @@ function App() {
           probes: prev.probes + production.probes * TICK_RATE,
           entropy: Math.min(0.88, Math.max(0, prev.entropy + production.entropyChange * TICK_RATE)),
           distance: prev.distance + production.distance * TICK_RATE,
-        }
+        };
 
         for (const milestone of distanceMilestones) {
           if (prev.distance < milestone && next.distance >= milestone) {
-            messages.push(`Signal echo received from ${milestone} light years.`)
+            messages.push(`Signal echo received from ${milestone} light years.`);
           }
         }
         for (const milestone of dataMilestones) {
           if (prev.data < milestone && next.data >= milestone) {
-            messages.push(`Archive density surpasses ${milestone.toLocaleString()} qubits.`)
+            messages.push(`Archive density surpasses ${milestone.toLocaleString()} qubits.`);
           }
         }
         if (prev.entropy < 0.65 && next.entropy >= 0.65) {
-          messages.push('Warning: replication entropy approaching instability.')
+          messages.push('Warning: replication entropy approaching instability.');
         }
-        return next
-      })
+        return next;
+      });
 
       if (messages.length) {
-        setLogs((prev) => [...messages.reverse(), ...prev].slice(0, 8))
+        setLogs((prev) => [...messages.reverse(), ...prev].slice(0, 8));
       }
-    }, TICK_MS)
+    }, TICK_MS);
 
-    return () => clearInterval(interval)
-  }, [units, upgradeState, prestige])
+    return () => clearInterval(interval);
+  }, [units, upgradeState, prestige]);
 
   // Autosave (debounced)
   useEffect(() => {
-    if (!autosave) return
+    if (!autosave) return;
     const t = setTimeout(() => {
       try {
-        const save = buildSave({ resources, units, prestige, upgradeState, logs })
-        saveToLocalStorage(save)
-        setLastSavedAt(save.savedAt)
+        const save = buildSave({ resources, units, prestige, upgradeState, logs });
+        saveToLocalStorage(save);
+        setLastSavedAt(save.savedAt);
       } catch (e) {
-        console.warn('Failed to autosave', e)
+        console.warn('Failed to autosave', e);
       }
-    }, 2000)
-    return () => clearTimeout(t)
-  }, [resources, units, prestige, upgradeState, logs, autosave])
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [resources, units, prestige, upgradeState, logs, autosave]);
 
   const handlePurchaseUnit = (key: UnitKey) => {
-    const config = UNIT_CONFIG[key]
-    const cost = getUnitCost(key, units[key])
+    const config = UNIT_CONFIG[key];
+    const cost = getUnitCost(key, units[key]);
     if (!canAffordCost(resources, cost)) {
-      return
+      return;
     }
 
-    setResources((prev) => applyCost(prev, cost))
-    setUnits((prev) => ({ ...prev, [key]: prev[key] + 1 }))
-    setLogs((prev) => [`${config.name} commissioned.`, ...prev].slice(0, 8))
-  }
+    setResources((prev) => applyCost(prev, cost));
+    setUnits((prev) => ({ ...prev, [key]: prev[key] + 1 }));
+    setLogs((prev) => [`${config.name} commissioned.`, ...prev].slice(0, 8));
+  };
 
   const handlePurchaseUpgrade = (key: UpgradeKey) => {
-    if (upgradeState[key]) return
-    const config = UPGRADE_CONFIG[key]
-    if (config.requiresCycle && prestige.cycles < config.requiresCycle) return
-    if (!canAffordCost(resources, config.cost)) return
+    if (upgradeState[key]) return;
+    const config = UPGRADE_CONFIG[key];
+    if (config.requiresCycle && prestige.cycles < config.requiresCycle) return;
+    if (!canAffordCost(resources, config.cost)) return;
 
-    setResources((prev) => applyCost(prev, config.cost))
-    setUpgradeState((prev) => ({ ...prev, [key]: true }))
-    setLogs((prev) => [`Upgrade acquired: ${config.name}.`, ...prev].slice(0, 8))
-  }
+    setResources((prev) => applyCost(prev, config.cost));
+    setUpgradeState((prev) => ({ ...prev, [key]: true }));
+    setLogs((prev) => [`Upgrade acquired: ${config.name}.`, ...prev].slice(0, 8));
+  };
 
   const handleStabilize = () => {
-    if (!canAffordCost(resources, STABILIZE_COST)) return
+    if (!canAffordCost(resources, STABILIZE_COST)) return;
 
     setResources((prev) => {
-      const updated = applyCost(prev, STABILIZE_COST)
-      return { ...updated, entropy: Math.max(0, updated.entropy - 0.16) }
-    })
-    setLogs((prev) => ['Entropy damped. Replication fidelity restored.', ...prev].slice(0, 8))
-  }
+      const updated = applyCost(prev, STABILIZE_COST);
+      return { ...updated, entropy: Math.max(0, updated.entropy - 0.16) };
+    });
+    setLogs((prev) => ['Entropy damped. Replication fidelity restored.', ...prev].slice(0, 8));
+  };
 
-  const prestigeDistanceProgress = Math.min(resources.distance / PRESTIGE_REQUIREMENTS.distance, 1)
-  const prestigeDataProgress = Math.min(resources.data / PRESTIGE_REQUIREMENTS.data, 1)
+  const prestigeDistanceProgress = Math.min(resources.distance / PRESTIGE_REQUIREMENTS.distance, 1);
+  const prestigeDataProgress = Math.min(resources.data / PRESTIGE_REQUIREMENTS.data, 1);
 
   const prestigeReady =
-    resources.distance >= PRESTIGE_REQUIREMENTS.distance && resources.data >= PRESTIGE_REQUIREMENTS.data
+    resources.distance >= PRESTIGE_REQUIREMENTS.distance && resources.data >= PRESTIGE_REQUIREMENTS.data;
 
   const forkReady =
     prestige.cycles >= FORK_REQUIREMENTS.cycles &&
     resources.distance >= FORK_REQUIREMENTS.distance &&
-    resources.data >= FORK_REQUIREMENTS.data
+    resources.data >= FORK_REQUIREMENTS.data;
 
   const handlePrestige = () => {
-    if (!prestigeReady) return
-    const memoryGain = baseMemoryGain
+    if (!prestigeReady) return;
+    const memoryGain = baseMemoryGain;
     setPrestige((prev) => ({
       cycles: prev.cycles + 1,
       storedKnowledge: prev.storedKnowledge + memoryGain + (upgradeState.quantumMemory ? 1 : 0),
       forks: prev.forks,
       primeArchives: prev.primeArchives,
-    }))
-    setUnits(INITIAL_UNITS)
+    }));
+    setUnits(INITIAL_UNITS);
     setUpgradeState((prev) => ({
       ...INITIAL_UPGRADES,
       quantumMemory: prev.quantumMemory,
-    }))
+    }));
     setResources({
       ...INITIAL_RESOURCES,
       metal: INITIAL_RESOURCES.metal + memoryGain * 32,
       energy: INITIAL_RESOURCES.energy + memoryGain * 15,
       probes: INITIAL_RESOURCES.probes + memoryGain * 0.9,
-    })
-    setLogs((prev) => [`Cycle rebooted. Memory shards retained: ${memoryGain}.`, ...prev].slice(0, 8))
-  }
+    });
+    setLogs((prev) => [`Cycle rebooted. Memory shards retained: ${memoryGain}.`, ...prev].slice(0, 8));
+  };
 
   const handleFork = () => {
-    if (!forkReady) return
-    const primeBoost = primeGain
+    if (!forkReady) return;
+    const primeBoost = primeGain;
     setPrestige((prev) => ({
       cycles: 0,
       storedKnowledge: 0,
       forks: prev.forks + 1,
       primeArchives: prev.primeArchives + primeBoost,
-    }))
-    setUnits(INITIAL_UNITS)
+    }));
+    setUnits(INITIAL_UNITS);
     setUpgradeState((prev) => ({
       ...INITIAL_UPGRADES,
       quantumMemory: prev.quantumMemory,
-    }))
+    }));
     setResources({
       ...INITIAL_RESOURCES,
       metal: INITIAL_RESOURCES.metal + primeBoost * 160,
       energy: INITIAL_RESOURCES.energy + primeBoost * 75,
       data: INITIAL_RESOURCES.data + primeBoost * 12,
       probes: INITIAL_RESOURCES.probes + primeBoost * 3,
-    })
+    });
     setLogs((prev) =>
       [`Continuum forked. Prime Archives added: ${primeBoost}.`, ...prev].slice(0, 8),
-    )
-    setPrestigeTab('cycle')
-  }
+    );
+    setPrestigeTab('cycle');
+  };
 
   const handleExportSave = () => {
     try {
-      const save = buildSave({ resources, units, prestige, upgradeState, logs })
-      exportSaveFile(save)
+      const save = buildSave({ resources, units, prestige, upgradeState, logs });
+      exportSaveFile(save);
     } catch (e) {
-      console.warn('Export failed', e)
+      console.warn('Export failed', e);
     }
-  }
+  };
 
   const handleImportChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const file = e.target.files?.[0];
+    if (!file) return;
     try {
-      const save = await importSaveFile(file)
-      const s = save.state
-      setResources(s.resources)
-      setUnits(s.units)
-      setPrestige({ ...INITIAL_PRESTIGE, ...s.prestige })
-      setUpgradeState(s.upgradeState)
+      const save = await importSaveFile(file);
+      const s = save.state;
+      setResources(s.resources);
+      setUnits(s.units);
+      setPrestige({ ...INITIAL_PRESTIGE, ...s.prestige });
+      setUpgradeState(s.upgradeState);
       if (s.logs && s.logs.length) {
-        const loadedLogs = s.logs
-        setLogs((prev) => [...loadedLogs, ...prev].slice(0, 8))
+        const loadedLogs = s.logs;
+        setLogs((prev) => [...loadedLogs, ...prev].slice(0, 8));
       }
-      setLastSavedAt(save.savedAt)
-      saveToLocalStorage(save)
+      setLastSavedAt(save.savedAt);
+      saveToLocalStorage(save);
 
-      const savedAtMs = Date.parse(save.savedAt)
+      const savedAtMs = Date.parse(save.savedAt);
       if (!Number.isNaN(savedAtMs)) {
-        const offlineSeconds = Math.floor((Date.now() - savedAtMs) / 1000)
+        const offlineSeconds = Math.floor((Date.now() - savedAtMs) / 1000);
         if (offlineSeconds > 0) {
           const { resources: newResources, log } = simulateOfflineProgress(
             s.resources,
@@ -437,26 +437,26 @@ function App() {
             s.upgradeState,
             s.prestige,
             Math.min(offlineSeconds, 24 * 60 * 60),
-          )
-          setResources(newResources)
-          setLogs((prev) => [log, ...prev].slice(0, 8))
+          );
+          setResources(newResources);
+          setLogs((prev) => [log, ...prev].slice(0, 8));
         }
       }
     } catch (err) {
-      console.warn('Import failed', err)
+      console.warn('Import failed', err);
     }
-  }
+  };
 
   const handleManualSave = () => {
     try {
-      const save = buildSave({ resources, units, prestige, upgradeState, logs })
-      saveToLocalStorage(save)
-      setLastSavedAt(save.savedAt)
-      setLogs((prev) => ['Manual save created.', ...prev].slice(0, 8))
+      const save = buildSave({ resources, units, prestige, upgradeState, logs });
+      saveToLocalStorage(save);
+      setLastSavedAt(save.savedAt);
+      setLogs((prev) => ['Manual save created.', ...prev].slice(0, 8));
     } catch (e) {
-      console.warn('Manual save failed', e)
+      console.warn('Manual save failed', e);
     }
-  }
+  };
 
   return (
     <div className="app">
@@ -658,9 +658,9 @@ function App() {
           <h2>Replication Network</h2>
           <div className="unit-grid">
             {(Object.keys(UNIT_CONFIG) as UnitKey[]).map((key) => {
-              const config = UNIT_CONFIG[key]
-              const cost = getUnitCost(key, units[key])
-              const affordable = canAffordCost(resources, cost)
+              const config = UNIT_CONFIG[key];
+              const cost = getUnitCost(key, units[key]);
+              const affordable = canAffordCost(resources, cost);
 
               return (
                 <article key={key} className="unit-card" style={{ ['--accent' as string]: config.accent }}>
@@ -683,7 +683,7 @@ function App() {
                     </button>
                   </footer>
                 </article>
-              )
+              );
             })}
           </div>
         </section>
@@ -692,10 +692,10 @@ function App() {
           <h2>Network Upgrades</h2>
           <div className="upgrade-grid">
             {(Object.keys(UPGRADE_CONFIG) as UpgradeKey[]).map((key) => {
-              const config = UPGRADE_CONFIG[key]
-              const unlocked = !config.requiresCycle || prestige.cycles >= config.requiresCycle
-              const costLabel = formatCostLabel(config.cost)
-              const affordable = unlocked && !upgradeState[key] && canAffordCost(resources, config.cost)
+              const config = UPGRADE_CONFIG[key];
+              const unlocked = !config.requiresCycle || prestige.cycles >= config.requiresCycle;
+              const costLabel = formatCostLabel(config.cost);
+              const affordable = unlocked && !upgradeState[key] && canAffordCost(resources, config.cost);
 
               return (
                 <article
@@ -720,7 +720,7 @@ function App() {
                     </button>
                   </footer>
                 </article>
-              )
+              );
             })}
           </div>
         </section>
@@ -879,7 +879,7 @@ function App() {
         </section>
       </main>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
