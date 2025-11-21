@@ -1,0 +1,7 @@
+node_modules
+dist
+temp-tsc-out
+public
+.vscode
+*.min.js
+*.bundle.js

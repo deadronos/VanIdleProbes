@@ -112,27 +112,36 @@ function App() {
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
-  const starfield = useMemo(
-    () =>
-      Array.from({ length: 120 }, (_, idx) => ({
-        id: idx,
-        left: Math.random() * 100,
-        top: Math.random() * 100,
-        size: Math.random() * 2 + 0.6,
-        delay: Math.random() * 6,
-      })),
-    [],
-  );
+  // deterministic pseudo-random generator (pure) to avoid impure calls during render
+  const seededRng = (seed: number) => {
+    let v = seed >>> 0;
+    return () => {
+      v = (v * 1664525 + 1013904223) >>> 0;
+      return v / 4294967295;
+    };
+  };
 
-  const swarmSeed = useRef(
-    Array.from({ length: 18 }, (_, idx) => ({
+  const starfield = useMemo(() => {
+    const rng = seededRng(1337);
+    return Array.from({ length: 120 }, (_, idx) => ({
       id: idx,
-      angle: Math.random() * 360,
-      radius: 18 + Math.random() * 18,
-      duration: 12 + Math.random() * 8,
-      hue: 170 + Math.random() * 120,
-    })),
-  );
+      left: rng() * 100,
+      top: rng() * 100,
+      size: rng() * 2 + 0.6,
+      delay: rng() * 6,
+    }));
+  }, []);
+
+  const swarmSeed = useMemo(() => {
+    const rng = seededRng(4242);
+    return Array.from({ length: 18 }, (_, idx) => ({
+      id: idx,
+      angle: rng() * 360,
+      radius: 18 + rng() * 18,
+      duration: 12 + rng() * 8,
+      hue: 170 + rng() * 120,
+    }));
+  }, []);
 
   const productionPreview = useMemo(
     () => computeProduction(resources, units, upgradeState, prestige),
@@ -140,8 +149,8 @@ function App() {
   );
 
   const activeProbeCount = useMemo(
-    () => Math.max(3, Math.min(swarmSeed.current.length, Math.floor(resources.probes / 6))),
-    [resources.probes],
+    () => Math.max(3, Math.min(swarmSeed.length, Math.floor(resources.probes / 6))),
+    [resources.probes, swarmSeed.length],
   );
 
   const orbitExpansion = useMemo(() => 1 + Math.min(resources.distance / 260, 1.6), [resources.distance]);
@@ -224,31 +233,34 @@ function App() {
       if (!raw) return;
       const save = migrateSave(raw);
       const s = save.state;
-      setResources(s.resources);
-      setUnits(s.units);
-      setPrestige({ ...INITIAL_PRESTIGE, ...s.prestige });
-      setUpgradeState(s.upgradeState);
-      if (s.logs && s.logs.length) {
-        const loadedLogs = s.logs;
-        setLogs((prev) => [...loadedLogs, ...prev].slice(0, 8));
-      }
-      setLastSavedAt(save.savedAt);
-
-      const savedAtMs = Date.parse(save.savedAt);
-      if (!Number.isNaN(savedAtMs)) {
-        const offlineSeconds = Math.floor((Date.now() - savedAtMs) / 1000);
-        if (offlineSeconds > 0) {
-          const { resources: newResources, log } = simulateOfflineProgress(
-            s.resources,
-            s.units,
-            s.upgradeState,
-            s.prestige,
-            Math.min(offlineSeconds, 24 * 60 * 60),
-          );
-          setResources(newResources);
-          setLogs((prev) => [log, ...prev].slice(0, 8));
+      // schedule state hydration asynchronously to avoid cascading renders
+      setTimeout(() => {
+        setResources(s.resources);
+        setUnits(s.units);
+        setPrestige({ ...INITIAL_PRESTIGE, ...s.prestige });
+        setUpgradeState(s.upgradeState);
+        if (s.logs && s.logs.length) {
+          const loadedLogs = s.logs;
+          setLogs((prev) => [...loadedLogs, ...prev].slice(0, 8));
         }
-      }
+        setLastSavedAt(save.savedAt);
+
+        const savedAtMs = Date.parse(save.savedAt);
+        if (!Number.isNaN(savedAtMs)) {
+          const offlineSeconds = Math.floor((Date.now() - savedAtMs) / 1000);
+          if (offlineSeconds > 0) {
+            const { resources: newResources, log } = simulateOfflineProgress(
+              s.resources,
+              s.units,
+              s.upgradeState,
+              s.prestige,
+              Math.min(offlineSeconds, 24 * 60 * 60),
+            );
+            setResources(newResources);
+            setLogs((prev) => [log, ...prev].slice(0, 8));
+          }
+        }
+      }, 0);
     } catch {
       // ignore malformed saves
     }
@@ -521,7 +533,7 @@ function App() {
               />
             ))}
             <div className="probe-swarm" aria-hidden="true">
-              {swarmSeed.current.slice(0, activeProbeCount).map((probe) => (
+              {swarmSeed.slice(0, activeProbeCount).map((probe) => (
                 <span
                   key={`probe-${probe.id}`}
                   className="probe"

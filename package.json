@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test": "vitest",
-    "lint": "eslint .",
+    "lint": "eslint src scripts --ext .ts,.tsx,.js,.mjs,.cjs",
     "preview": "vite preview"
   },
   "dependencies": {

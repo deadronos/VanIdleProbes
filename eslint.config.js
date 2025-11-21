@@ -38,4 +38,17 @@ export default defineConfig([
 			'prefer-const': 'error',
 		},
 	},
+
+	// Node/script overrides for project scripts (allow require-style CJS)
+	{
+		files: ['scripts/**', 'scripts/*.js', '*.cjs'],
+		languageOptions: {
+			ecmaVersion: 2022,
+			sourceType: 'script',
+			globals: globals.node,
+		},
+		rules: {
+			'@typescript-eslint/no-require-imports': 'off',
+		},
+	},
 ]);
