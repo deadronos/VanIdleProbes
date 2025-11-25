@@ -1,37 +1,6 @@
-// Local type definitions to avoid importing from `config` during test transforms
-type ResourceState = {
-  metal: number
-  energy: number
-  data: number
-  probes: number
-  entropy: number
-  distance: number
-}
+import type { ResourceState, UnitKey, PrestigeState, UpgradeKey, UpgradeState } from './config';
 
-export type UnitKey =
-  | 'harvesters'
-  | 'foundries'
-  | 'fabricators'
-  | 'archives'
-  | 'signalRelays'
-  | 'stabilizers'
-
-export interface PrestigeState {
-  cycles: number
-  storedKnowledge: number
-  forks: number
-  primeArchives: number
-}
-
-export type UpgradeKey =
-  | 'autonomy'
-  | 'dysonSheath'
-  | 'autoforge'
-  | 'archiveBloom'
-  | 'quantumMemory'
-  | 'stellarCartography'
-
-export type UpgradeState = Record<UpgradeKey, boolean>
+export type { UnitKey, PrestigeState, UpgradeKey, UpgradeState };
 
 export type ProductionSnapshot = {
   metal: number

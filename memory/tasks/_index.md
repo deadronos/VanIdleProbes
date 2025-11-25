@@ -6,11 +6,12 @@
 
 ## Pending
 
- - None
+- None
 
 ## Completed
 
 - [TASK001] Seed `memory/` folder with core docs - Completed 2025-11-08
+- [TASK003] Visual Enhancements for UI and Probe Travel Visualization - Completed 2025-11-25
 
 ## Abandoned
 
