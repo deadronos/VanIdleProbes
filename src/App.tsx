@@ -567,7 +567,21 @@ function App() {
               ))}
             </div>
             <div
-              className="exploration-wave"
+              className="exploration-wave pulse"
+              style={{
+                transform: `scale(${1 + resources.distance / 220})`,
+                opacity: Math.min(1, 0.25 + resources.distance / 280),
+              }}
+            />
+            <div
+              className="exploration-wave pulse"
+              style={{
+                transform: `scale(${1 + resources.distance / 220})`,
+                opacity: Math.min(1, 0.25 + resources.distance / 280),
+              }}
+            />
+            <div
+              className="exploration-wave pulse"
               style={{
                 transform: `scale(${1 + resources.distance / 220})`,
                 opacity: Math.min(1, 0.25 + resources.distance / 280),
