@@ -111,6 +111,9 @@ function App() {
   const [autosave, setAutosave] = useState<boolean>(true);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  
+  // Refs to hold latest state for autosave (avoids stale closures in interval)
+  const stateRef = useRef({ resources: INITIAL_RESOURCES, units: INITIAL_UNITS, prestige: INITIAL_PRESTIGE, upgradeState: INITIAL_UPGRADES, logs: [] as string[] });
 
   // deterministic pseudo-random generator (pure) to avoid impure calls during render
   const seededRng = (seed: number) => {
@@ -228,13 +231,14 @@ function App() {
 
   // On mount: load save from localStorage (with migration) and apply offline progress
   useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
     try {
       const raw = loadFromLocalStorage();
       if (!raw) return;
       const save = migrateSave(raw);
       const s = save.state;
       // schedule state hydration asynchronously to avoid cascading renders
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         setResources(s.resources);
         setUnits(s.units);
         setPrestige({ ...INITIAL_PRESTIGE, ...s.prestige });
@@ -264,6 +268,9 @@ function App() {
     } catch {
       // ignore malformed saves
     }
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, []);
 
   useEffect(() => {
@@ -304,20 +311,26 @@ function App() {
     return () => clearInterval(interval);
   }, [units, upgradeState, prestige]);
 
-  // Autosave (debounced)
+  // Autosave effect - triggers periodically based on a longer interval
+  // Keep stateRef in sync so autosave interval reads fresh values
+  useEffect(() => {
+    stateRef.current = { resources, units, prestige, upgradeState, logs };
+  });
+  
   useEffect(() => {
     if (!autosave) return;
-    const t = setTimeout(() => {
+    const interval = setInterval(() => {
       try {
-        const save = buildSave({ resources, units, prestige, upgradeState, logs });
+        const { resources: r, units: u, prestige: p, upgradeState: us, logs: l } = stateRef.current;
+        const save = buildSave({ resources: r, units: u, prestige: p, upgradeState: us, logs: l });
         saveToLocalStorage(save);
         setLastSavedAt(save.savedAt);
       } catch (e) {
         console.warn('Failed to autosave', e);
       }
-    }, 2000);
-    return () => clearTimeout(t);
-  }, [resources, units, prestige, upgradeState, logs, autosave]);
+    }, 10_000); // Save every 10 seconds
+    return () => clearInterval(interval);
+  }, [autosave]); // Only re-create interval when autosave toggle changes
 
   const handlePurchaseUnit = (key: UnitKey) => {
     const config = UNIT_CONFIG[key];
@@ -507,7 +520,14 @@ function App() {
           </div>
           <div className="save-controls">
             <button onClick={handleExportSave}>Export</button>
-            <input ref={importInputRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImportChange} />
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".json"
+              className="visually-hidden"
+              aria-label="Import save file"
+              onChange={handleImportChange}
+            />
             <button onClick={() => importInputRef?.current?.click()}>Import</button>
             <label className="autosave-toggle">
               <input type="checkbox" checked={autosave} onChange={(e) => setAutosave(e.target.checked)} /> Autosave

@@ -1,72 +1,10 @@
-// Local type definitions to avoid importing from `config` during test transforms
-type ResourceState = {
-  metal: number
-  energy: number
-  data: number
-  probes: number
-  entropy: number
-  distance: number
-}
-
-type UnitKey =
-  | 'harvesters'
-  | 'foundries'
-  | 'fabricators'
-  | 'archives'
-  | 'signalRelays'
-  | 'stabilizers'
-
-interface PrestigeState {
-  cycles: number
-  storedKnowledge: number
-  forks: number
-  primeArchives: number
-}
-
-type UpgradeKey =
-  | 'autonomy'
-  | 'dysonSheath'
-  | 'autoforge'
-  | 'archiveBloom'
-  | 'quantumMemory'
-  | 'stellarCartography'
-
-type UpgradeState = Record<UpgradeKey, boolean>
-
-// Minimal local defaults copied from `config.ts` to avoid runtime import during test transforms
-const INITIAL_RESOURCES: ResourceState = {
-  metal: 95,
-  energy: 45,
-  data: 0,
-  probes: 6,
-  entropy: 0.03,
-  distance: 0,
-};
-
-const INITIAL_UNITS: Record<UnitKey, number> = {
-  harvesters: 2,
-  foundries: 0,
-  fabricators: 0,
-  archives: 0,
-  signalRelays: 0,
-  stabilizers: 0,
-};
-
-const INITIAL_PRESTIGE: PrestigeState = {
-  cycles: 0,
-  storedKnowledge: 0,
-  forks: 0,
-  primeArchives: 0,
-};
-
-const INITIAL_UPGRADES: Record<string, boolean> = {
-  autonomy: false,
-  dysonSheath: false,
-  autoforge: false,
-  archiveBloom: false,
-  quantumMemory: false,
-  stellarCartography: false,
-};
+import type { ResourceState, UnitKey, PrestigeState, UpgradeState } from './config';
+import {
+  INITIAL_RESOURCES,
+  INITIAL_UNITS,
+  INITIAL_PRESTIGE,
+  INITIAL_UPGRADES,
+} from './config';
 
 export const CURRENT_SAVE_VERSION = 2;
 export const SAVE_KEY = 'vanidleprobes.save.v2';
