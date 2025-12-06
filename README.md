@@ -1,109 +1,109 @@
-# React + TypeScript + Vite
+# Von Idle Probes
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**Von Idle Probes** is an incremental clicker/idle game built with React, TypeScript, and Vite. You act as the origin node of a self-replicating Von Neumann probe swarm, tasked with exploring the galaxy, gathering resources, and ensuring the survival of your lineage against entropy.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Incremental Progression**: Gather resources (Metal, Energy, Data, Probes) to build units.
+- **Unit Management**: Construct Harvesters, Foundries, Fabricators, and more to automate production.
+- **Upgrades**: Unlock powerful technologies like Autonomy Firmware and Dyson Sheaths to boost efficiency.
+- **Prestige Mechanics**:
+  - **Cycle Reboot**: Reset for "Stored Knowledge" and permanent bonuses.
+  - **Continuum Fork**: A higher-tier reset that resets cycles but grants "Prime Archives" and massive boosts.
+- **Offline Progress**: Simulation continues even when the tab is closed, calculating gains upon return.
+- **Save System**: Autosave, manual save, and export/import functionality (JSON).
+- **Responsive UI**: A clean, dark-themed cosmic interface with real-time feedback.
 
-## React Compiler
+## Project Structure
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+The codebase is organized as follows:
 
-Note: This will impact Vite dev & build performances.
+- **`src/`**: Source code root.
+  - **`main.tsx`**: Entry point.
+  - **`App.tsx`**: Main game component and UI logic.
+  - **`game/`**: Core game logic (agnostic of UI).
+    - **`config.ts`**: Type definitions, constants, and balancing configuration.
+    - **`engine.ts`**: Production calculations and offline simulation logic.
+    - **`save.ts`**: Save file schema, migration logic, and storage handling.
+  - **`assets/`**: Static assets (if any).
+- **`scripts/`**: Utility scripts for build/test environment patching.
+- **`public/`**: Static public files.
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Prerequisites
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- Node.js (v18+ recommended)
+- npm
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Installation
 
-      // Other configs...
-    },
-  ])
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/deadronos/VanIdleProbes.git
+    cd VanIdleProbes
+    ```
 
-  ## GitHub Pages
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
 
-  This project is published at: https://deadronos.github.io/VanIdleProbes/
+### Development
 
-  ### Deploy (automatic)
+To start the local development server with Hot Module Replacement (HMR):
 
-  A GitHub Actions workflow is included at `.github/workflows/deploy-on-tag.yml`. To deploy a release, create and push a tag that starts with `v` (for example `v0.1.0`):
-
-  ```bash
-  git tag v0.1.0
-  git push origin v0.1.0
-  ```
-
-  The workflow will run `npm ci` and `npm run build`, upload the `dist/` folder and publish it to GitHub Pages. The Vite build `base` is already configured in `vite.config.ts` to `/VanIdleProbes/`, so assets are referenced correctly.
-
-  You can preview the production build locally:
-
-  ```bash
-  npm run build
-  npm run preview
-  ```
-
-  Or serve `dist/` with a static server:
-
-  ```bash
-  npx serve dist
-  ```
-
-  After the workflow finishes, the site will be available at:
-
-  https://deadronos.github.io/VanIdleProbes/
-
-  You can also trigger the deploy workflow manually from the Actions tab using the "Run workflow" button.
-  ````
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open your browser to the URL shown (usually `http://localhost:5173`).
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Building
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+To build the project for production:
+
+```bash
+npm run build
 ```
+
+The output will be in the `dist/` directory.
+
+### Preview
+
+To preview the production build locally:
+
+```bash
+npm run preview
+```
+
+### Testing
+
+Run the test suite using Vitest:
+
+```bash
+npm test
+```
+
+### Linting
+
+Lint the codebase using ESLint:
+
+```bash
+npm run lint
+```
+
+## Gameplay Guide
+
+1.  **Start**: You begin with a small cache of resources.
+2.  **Build**: Purchase **Harvester Drones** to get Metal, then **Foundries** for Energy.
+3.  **Expand**: Build **Autofabricators** to create Probes and explore distance.
+4.  **Research**: Use **Archive Spires** to generate Data and unlock upgrades.
+5.  **Survive**: Watch your Entropy! If it gets too high, production slows. Build **Entropy Dampers** or pay for manual stabilization.
+6.  **Prestige**:
+    - Reach distance and data milestones to **Reboot the Cycle**.
+    - After several cycles, perform a **Continuum Fork** for massive multipliers.
+
+## License
+
+[MIT](LICENSE) (or whichever license applies)

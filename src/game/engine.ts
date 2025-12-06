@@ -2,19 +2,47 @@ import type { ResourceState, UnitKey, PrestigeState, UpgradeKey, UpgradeState } 
 
 export type { UnitKey, PrestigeState, UpgradeKey, UpgradeState };
 
+/**
+ * A snapshot of the production rates and multipliers for a single tick.
+ */
 export type ProductionSnapshot = {
+  /** Metal production per second. */
   metal: number
+  /** Energy production per second. */
   energy: number
+  /** Data production per second. */
   data: number
+  /** Probe production per second. */
   probes: number
+  /** Distance exploration rate per second. */
   distance: number
+  /** Rate of change for entropy per second. */
   entropyChange: number
+  /** The current efficiency multiplier due to distance latency (0.0 - 1.0). */
   latencyFactor: number
+  /** The aggregate production multiplier affecting all outputs. */
   productionFactor: number
 }
 
+/**
+ * Clamps a number between a lower and upper bound.
+ *
+ * @param v - The value to clamp.
+ * @param lo - The lower bound.
+ * @param hi - The upper bound.
+ * @returns The clamped value.
+ */
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
+/**
+ * Calculates the production rates for all resources based on the current game state.
+ *
+ * @param resources - Current resource amounts (affects some dynamic rates like entropy).
+ * @param units - Counts of owned units.
+ * @param upgrades - State of purchased upgrades.
+ * @param prestige - Current prestige level and bonuses.
+ * @returns A snapshot of production rates and efficiency factors.
+ */
 export const computeProduction = (
   resources: ResourceState,
   units: Record<UnitKey, number>,
@@ -82,6 +110,18 @@ export const computeProduction = (
   };
 };
 
+/**
+ * Simulates game progress over a period of offline time.
+ * Calculates resource gains and returns a log message summarizing the results.
+ *
+ * @param resources - Resource state at the start of the offline period.
+ * @param units - Owned units.
+ * @param upgrades - Owned upgrades.
+ * @param prestige - Prestige state.
+ * @param offlineSeconds - Total seconds of offline time to simulate.
+ * @param stepSec - Optional simulation step size in seconds (default is dynamic).
+ * @returns An object containing the new resource state and a log string.
+ */
 export function simulateOfflineProgress(
   resources: ResourceState,
   units: Record<UnitKey, number>,

@@ -1,4 +1,11 @@
 #!/usr/bin/env node
+/**
+ * @fileoverview CommonJS version of the `fix-vite-node-ssr.js` patch script.
+ * Patches `vite-node/dist/client.mjs` to ensure SSR helper functions are present.
+ * This is a robust fallback that searches for the `debugExecute(__filename);` marker
+ * to inject the necessary polyfills for `__vite_ssr_exportName__`.
+ */
+
 const fs = require('fs');
 const path = require('path');
 
