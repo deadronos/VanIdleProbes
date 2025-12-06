@@ -1,4 +1,13 @@
 #!/usr/bin/env node
+/**
+ * @fileoverview Patches `vite-node/dist/client.mjs` to ensure SSR helper functions are present.
+ * This script is a workaround for issues where `__vite_ssr_exportName__` and other helpers
+ * might be missing during SSR or test execution involving `vite-node`.
+ *
+ * It checks if the patch is already applied and, if not, injects a fallback definition
+ * for `__vite_ssr_exportName__` before `debugExecute` is called.
+ */
+
 const fs = require('fs');
 const path = require('path');
 

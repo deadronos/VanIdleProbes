@@ -6,15 +6,25 @@ import {
   INITIAL_UPGRADES,
 } from './config';
 
+/** The current version number for the save file format. */
 export const CURRENT_SAVE_VERSION = 2;
+/** The key used for storing save data in localStorage. */
 export const SAVE_KEY = 'vanidleprobes.save.v2';
 
+/**
+ * Interface representing the structure of a version 2 save file.
+ */
 export interface SaveV2 {
+  /** The version of the save format (must be 2). */
   version: 2
+  /** ISO timestamp string of when the save was created. */
   savedAt: string
+  /** Metadata about the application environment. */
   meta: {
+    /** The version of the application that created the save. */
     appVersion: string
   }
+  /** The actual game state data. */
   state: {
     resources: ResourceState
     units: Record<UnitKey, number>
@@ -24,6 +34,13 @@ export interface SaveV2 {
   }
 }
 
+/**
+ * Constructs a full save object from the current game state.
+ *
+ * @param state - The current game state (resources, units, etc.).
+ * @param appVersion - The current version of the application.
+ * @returns A complete `SaveV2` object ready for storage.
+ */
 export const buildSave = (
   state: SaveV2['state'],
   appVersion = '0.0.0',
@@ -34,6 +51,12 @@ export const buildSave = (
   state,
 });
 
+/**
+ * Persists the save object to the browser's localStorage.
+ * Handles potential storage quotas or access errors gracefully.
+ *
+ * @param save - The save object to store.
+ */
 export const saveToLocalStorage = (save: SaveV2) => {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(save));
@@ -42,6 +65,11 @@ export const saveToLocalStorage = (save: SaveV2) => {
   }
 };
 
+/**
+ * Retrieves and parses the save data from localStorage.
+ *
+ * @returns The parsed save object (as `unknown`) or `null` if no save exists or parsing failed.
+ */
 export const loadFromLocalStorage = (): unknown | null => {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
@@ -53,6 +81,12 @@ export const loadFromLocalStorage = (): unknown | null => {
   }
 };
 
+/**
+ * Triggers a browser download of the current save state as a JSON file.
+ *
+ * @param save - The save object to export.
+ * @param filename - The default filename for the downloaded file.
+ */
 export const exportSaveFile = (save: SaveV2, filename = `vanidleprobes-save-${save.savedAt}.json`) => {
   const blob = new Blob([JSON.stringify(save, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -65,12 +99,26 @@ export const exportSaveFile = (save: SaveV2, filename = `vanidleprobes-save-${sa
   URL.revokeObjectURL(url);
 };
 
+/**
+ * Reads and parses a save file uploaded by the user.
+ * Automatically attempts to migrate the save to the current version.
+ *
+ * @param file - The file object from a file input.
+ * @returns A promise resolving to the migrated `SaveV2` object.
+ */
 export const importSaveFile = async (file: File): Promise<SaveV2> => {
   const text = await file.text();
   const parsed = JSON.parse(text);
   return migrateSave(parsed);
 };
 
+/**
+ * Migrates a legacy (v0 or partial) save structure to the v1/v2 format.
+ * Fills in missing fields with initial values.
+ *
+ * @param raw - The raw, potentially unstructured save data.
+ * @returns A strictly typed `SaveV2` object (conceptually v1, but interface is compatible).
+ */
 export const migrate_v0_to_v1 = (raw: unknown): SaveV2 => {
   const rawObj = (raw as Record<string, unknown>) ?? {};
   const stateCandidate = (rawObj.state as Record<string, unknown>) ?? rawObj;
@@ -126,6 +174,13 @@ export const migrate_v0_to_v1 = (raw: unknown): SaveV2 => {
   return save;
 };
 
+/**
+ * Migrates a v1 save to v2.
+ * Initializes new prestige fields (forks, primeArchives) if missing.
+ *
+ * @param raw - The v1 save data.
+ * @returns A valid `SaveV2` object.
+ */
 export const migrate_v1_to_v2 = (raw: unknown): SaveV2 => {
   const previous = migrate_v0_to_v1(raw);
   return {
@@ -142,6 +197,14 @@ export const migrate_v1_to_v2 = (raw: unknown): SaveV2 => {
   };
 };
 
+/**
+ * Main entry point for save migration.
+ * Routes the raw save data through the appropriate migration chain based on its version.
+ *
+ * @param raw - The raw save data loaded from storage or file.
+ * @returns The fully migrated `SaveV2` object.
+ * @throws If the save version is unsupported or data is missing.
+ */
 export const migrateSave = (raw: unknown): SaveV2 => {
   if (!raw) throw new Error('No save data provided');
   const rawObj = raw as Record<string, unknown>;

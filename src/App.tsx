@@ -8,6 +8,11 @@ import { buildSave, saveToLocalStorage, loadFromLocalStorage, exportSaveFile, im
 const TICK_MS = 250;
 const TICK_RATE = TICK_MS / 1000;
 
+/**
+ * Formats a number with standard suffixes (k, m, b) for display.
+ * @param value The number to format.
+ * @returns A formatted string.
+ */
 const formatNumber = (value: number) => {
   if (value >= 1_000_000_000) {
     return `${(value / 1_000_000_000).toFixed(2)}b`;
@@ -24,11 +29,23 @@ const formatNumber = (value: number) => {
   return value.toFixed(2);
 };
 
+/**
+ * Checks if the player has enough resources to afford a given cost.
+ * @param resources The current resource state.
+ * @param cost The cost object to check against.
+ * @returns True if affordable, false otherwise.
+ */
 const canAffordCost = (resources: ResourceState, cost: Cost) =>
   (Object.entries(cost) as [ResourceKey, number][]).every(([key, value]) =>
     value ? resources[key] >= value : true,
   );
 
+/**
+ * Deducts the specified cost from the resource state.
+ * @param resources The current resource state.
+ * @param cost The cost to deduct.
+ * @returns A new resource state with costs applied.
+ */
 const applyCost = (resources: ResourceState, cost: Cost) => {
   const updated = { ...resources };
   for (const [key, value] of Object.entries(cost) as [ResourceKey, number][]) {
@@ -39,6 +56,13 @@ const applyCost = (resources: ResourceState, cost: Cost) => {
   return updated;
 };
 
+/**
+ * Calculates the current cost of a unit based on how many are already owned.
+ * Uses an exponential growth formula.
+ * @param key The unit key.
+ * @param owned The number of units currently owned.
+ * @returns The calculated cost object.
+ */
 const getUnitCost = (key: UnitKey, owned: number) => {
   const config = UNIT_CONFIG[key];
   const multiplier = Math.pow(config.costGrowth, owned);
@@ -46,7 +70,6 @@ const getUnitCost = (key: UnitKey, owned: number) => {
     Object.entries(config.baseCost).map(([resource, value]) => [resource, value * multiplier]),
   ) as Cost;
 };
-// Use `computeProduction` and `ProductionSnapshot` from `game/engine`.
 
 const resourceOrder: ResourceKey[] = ['metal', 'energy', 'probes', 'data'];
 const resourceLabels: Record<ResourceKey, string> = {
@@ -62,6 +85,11 @@ const resourceFlavour: Record<ResourceKey, string> = {
   data: 'Crystalline memory encoded from every contact.',
 };
 
+/**
+ * Formats a cost object into a readable string string for UI buttons.
+ * @param cost The cost object.
+ * @returns A string like "Metal 100 • Energy 50".
+ */
 const formatCostLabel = (cost: Cost) =>
   (Object.entries(cost) as [ResourceKey, number][])
     .filter(([, value]) => value && value > 0)
@@ -81,6 +109,12 @@ interface MilestoneProgress {
   span: number
 }
 
+/**
+ * Calculates progress towards the next milestone in a sorted list.
+ * @param value Current value.
+ * @param milestones Sorted array of milestone targets.
+ * @returns Progress information including previous/next targets and percentage.
+ */
 const getMilestoneProgress = (value: number, milestones: number[]): MilestoneProgress => {
   const nextIndex = milestones.findIndex((milestone) => milestone > value);
   if (nextIndex === -1) {
@@ -96,6 +130,10 @@ const getMilestoneProgress = (value: number, milestones: number[]): MilestonePro
   return { previous, next, progress, span };
 };
 
+/**
+ * The main application component.
+ * Handles the game loop, state management, UI rendering, and user interactions.
+ */
 function App() {
   const [resources, setResources] = useState<ResourceState>(INITIAL_RESOURCES);
   const [units, setUnits] = useState<Record<UnitKey, number>>(INITIAL_UNITS);

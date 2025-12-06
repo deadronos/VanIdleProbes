@@ -1,14 +1,33 @@
+/**
+ * Represents the keys for the different types of resources in the game.
+ * - `metal`: Used for construction.
+ * - `energy`: Used for powering structures and operations.
+ * - `data`: Used for research and upgrades.
+ * - `probes`: The main unit of exploration and expansion.
+ */
 export type ResourceKey = 'metal' | 'energy' | 'data' | 'probes'
 
+/**
+ * Represents the current state of all resources.
+ */
 export type ResourceState = {
+  /** The amount of metal available. */
   metal: number
+  /** The amount of energy available. */
   energy: number
+  /** The amount of data available. */
   data: number
+  /** The number of probes currently active. */
   probes: number
+  /** The current entropy level, representing system instability. */
   entropy: number
+  /** The distance explored in light years. */
   distance: number
 }
 
+/**
+ * Keys identifying the different types of units (buildings/ships).
+ */
 export type UnitKey =
   | 'harvesters'
   | 'foundries'
@@ -17,6 +36,9 @@ export type UnitKey =
   | 'signalRelays'
   | 'stabilizers'
 
+/**
+ * Keys identifying the different available upgrades.
+ */
 export type UpgradeKey =
   | 'autonomy'
   | 'dysonSheath'
@@ -25,41 +47,81 @@ export type UpgradeKey =
   | 'quantumMemory'
   | 'stellarCartography'
 
+/**
+ * Represents a cost in terms of resources.
+ * Only properties with values > 0 are usually considered.
+ */
 export interface Cost {
+  /** Cost in metal. */
   metal?: number
+  /** Cost in energy. */
   energy?: number
+  /** Cost in data. */
   data?: number
+  /** Cost in probes. */
   probes?: number
 }
 
+/**
+ * Configuration data for a unit.
+ */
 export interface UnitConfig {
+  /** Display name of the unit. */
   name: string
+  /** Flavor text and description of functionality. */
   description: string
+  /** CSS color variable for UI accent. */
   accent: string
+  /** Icon to display for the unit. */
   icon: string
+  /** The initial cost to purchase the first unit. */
   baseCost: Cost
+  /** The exponential growth factor for the cost of subsequent units. */
   costGrowth: number
 }
 
+/**
+ * Configuration data for an upgrade.
+ */
 export interface UpgradeConfig {
+  /** Display name of the upgrade. */
   name: string
+  /** Description of what the upgrade does. */
   description: string
+  /** Short summary of the effect stats. */
   effect: string
+  /** CSS color variable for UI accent. */
   accent: string
+  /** Cost to purchase the upgrade. */
   cost: Cost
+  /** Minimum prestige cycle required to unlock this upgrade (optional). */
   requiresCycle?: number
+  /** If true, the upgrade persists through prestige resets (optional). */
   persistent?: boolean
 }
 
+/**
+ * Represents the prestige state of the game, including reset currencies and counters.
+ */
 export interface PrestigeState {
+  /** Number of times the game has been reset (cycles completed). */
   cycles: number
+  /** Currency gained from resetting, used for permanent bonuses. */
   storedKnowledge: number
+  /** Number of times the "Fork" prestige has been activated. */
   forks: number
+  /** Secondary prestige currency/building that persists across forks. */
   primeArchives: number
 }
 
+/**
+ * Tracks which upgrades have been purchased.
+ */
 export type UpgradeState = Record<UpgradeKey, boolean>
 
+/**
+ * The initial state of resources when starting a new game or resetting.
+ */
 export const INITIAL_RESOURCES: ResourceState = {
   metal: 95,
   energy: 45,
@@ -69,6 +131,9 @@ export const INITIAL_RESOURCES: ResourceState = {
   distance: 0,
 };
 
+/**
+ * The initial counts for all units.
+ */
 export const INITIAL_UNITS: Record<UnitKey, number> = {
   harvesters: 2,
   foundries: 0,
@@ -78,6 +143,9 @@ export const INITIAL_UNITS: Record<UnitKey, number> = {
   stabilizers: 0,
 };
 
+/**
+ * The initial prestige state for a fresh save file.
+ */
 export const INITIAL_PRESTIGE: PrestigeState = {
   cycles: 0,
   storedKnowledge: 0,
@@ -85,6 +153,9 @@ export const INITIAL_PRESTIGE: PrestigeState = {
   primeArchives: 0,
 };
 
+/**
+ * The initial state of upgrades (all unpurchased).
+ */
 export const INITIAL_UPGRADES: Record<UpgradeKey, boolean> = {
   autonomy: false,
   dysonSheath: false,
@@ -94,6 +165,9 @@ export const INITIAL_UPGRADES: Record<UpgradeKey, boolean> = {
   stellarCartography: false,
 };
 
+/**
+ * Static configuration for all units in the game.
+ */
 export const UNIT_CONFIG: Record<UnitKey, UnitConfig> = {
   harvesters: {
     name: 'Harvester Drones',
@@ -145,6 +219,9 @@ export const UNIT_CONFIG: Record<UnitKey, UnitConfig> = {
   },
 };
 
+/**
+ * Static configuration for all upgrades in the game.
+ */
 export const UPGRADE_CONFIG: Record<UpgradeKey, UpgradeConfig> = {
   autonomy: {
     name: 'Autonomy Firmware',
