@@ -81,7 +81,7 @@ export const computeProduction = (
   const delayCompensation = upgrades.autonomy && baseLatencyFactor < 0.999 ? 1.2 : 1;
   const productionFactor = cycleBoost * latencyFactor * entropyPenalty * delayCompensation;
   const energyMultiplier = upgrades.dysonSheath ? 1.42 : 1;
-  const probeMultiplier = upgrades.autoforge ? 1.55 : 1;
+  const probeMultiplier = upgrades.autoforge ? 1.5 : 1;
   const dataMultiplier = (upgrades.archiveBloom ? 1.62 : 1) * (1 + normalizedPrestige.primeArchives * 0.05);
   const cartographyExplorationBonus = (upgrades.stellarCartography ? 1.14 : 1) * (1 + normalizedPrestige.forks * 0.04);
 
