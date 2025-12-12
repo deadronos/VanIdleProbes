@@ -809,18 +809,39 @@ function App() {
           </div>
         </section>
 
-        <section className="prestige-panel">
-          <div className="prestige-tabs">
-            <button className={prestigeTab === 'cycle' ? 'active' : ''} onClick={() => setPrestigeTab('cycle')}>
+        <section className="prestige-panel" aria-labelledby="prestige-heading">
+          <h2 id="prestige-heading" className="visually-hidden">Prestige Options</h2>
+          <div className="prestige-tabs" role="tablist" aria-label="Prestige Options">
+            <button
+              id="tab-cycle"
+              role="tab"
+              aria-selected={prestigeTab === 'cycle'}
+              aria-controls="panel-cycle"
+              className={prestigeTab === 'cycle' ? 'active' : ''}
+              onClick={() => setPrestigeTab('cycle')}
+            >
               Cycle Reboot
             </button>
-            <button className={prestigeTab === 'fork' ? 'active' : ''} onClick={() => setPrestigeTab('fork')}>
+            <button
+              id="tab-fork"
+              role="tab"
+              aria-selected={prestigeTab === 'fork'}
+              aria-controls="panel-fork"
+              className={prestigeTab === 'fork' ? 'active' : ''}
+              onClick={() => setPrestigeTab('fork')}
+            >
               Continuum Fork
             </button>
           </div>
 
           {prestigeTab === 'cycle' ? (
-            <div className="prestige-content">
+            <div
+              id="panel-cycle"
+              role="tabpanel"
+              aria-labelledby="tab-cycle"
+              className="prestige-content"
+              tabIndex={0}
+            >
               <div>
                 <h2>Recompile the Origin</h2>
                 <p>
@@ -881,7 +902,13 @@ function App() {
               </button>
             </div>
           ) : (
-            <div className="prestige-content">
+            <div
+              id="panel-fork"
+              role="tabpanel"
+              aria-labelledby="tab-fork"
+              className="prestige-content"
+              tabIndex={0}
+            >
               <div>
                 <h2>Fork the Continuum</h2>
                 <p>
@@ -953,9 +980,9 @@ function App() {
           )}
         </section>
 
-        <section className="log-section">
-          <h2>Telemetry Feed</h2>
-          <ul>
+        <section className="log-section" aria-labelledby="log-heading">
+          <h2 id="log-heading">Telemetry Feed</h2>
+          <ul aria-live="polite" aria-atomic="false">
             {logs.map((entry, index) => (
               <li key={`${entry}-${index}`}>{entry}</li>
             ))}
