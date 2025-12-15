@@ -4,6 +4,7 @@ import type { ResourceKey, ResourceState, UnitKey, UpgradeKey, PrestigeState, Up
 import { INITIAL_RESOURCES, INITIAL_UNITS, INITIAL_PRESTIGE, INITIAL_UPGRADES, UNIT_CONFIG, UPGRADE_CONFIG, ANOMALY_CONFIG, ARTIFACT_CONFIG } from './game/config';
 import { computeProduction, simulateOfflineProgress } from './game/engine';
 import { buildSave, saveToLocalStorage, loadFromLocalStorage, exportSaveFile, importSaveFile, migrateSave } from './game/save';
+import { warn } from './util/logger';
 
 const TICK_MS = 250;
 const TICK_RATE = TICK_MS / 1000;
@@ -367,7 +368,7 @@ function App() {
         saveToLocalStorage(save);
         setLastSavedAt(save.savedAt);
       } catch (e) {
-        console.warn('Failed to autosave', e);
+        warn('Failed to autosave', e);
       }
     }, 10_000); // Save every 10 seconds
     return () => clearInterval(interval);
@@ -485,7 +486,7 @@ function App() {
       const save = buildSave({ resources, units, prestige, upgradeState, scannedAnomalies, logs });
       exportSaveFile(save);
     } catch (e) {
-      console.warn('Export failed', e);
+      warn('Export failed', e);
     }
   };
 
@@ -524,7 +525,7 @@ function App() {
         }
       }
     } catch (err) {
-      console.warn('Import failed', err);
+      warn('Import failed', err);
     }
   };
 
@@ -535,7 +536,7 @@ function App() {
       setLastSavedAt(save.savedAt);
       setLogs((prev) => ['Manual save created.', ...prev].slice(0, 8));
     } catch (e) {
-      console.warn('Manual save failed', e);
+      warn('Manual save failed', e);
     }
   };
 

@@ -1,10 +1,11 @@
-import type { ResourceState, UnitKey, PrestigeState, UpgradeState, ArtifactKey, AnomalyKey } from './config';
+import type { ResourceState, UnitKey, PrestigeState, UpgradeState, AnomalyKey } from './config';
 import {
   INITIAL_RESOURCES,
   INITIAL_UNITS,
   INITIAL_PRESTIGE,
   INITIAL_UPGRADES,
 } from './config';
+import { warn } from '../util/logger';
 
 /** The current version number for the save file format. */
 export const CURRENT_SAVE_VERSION = 3;
@@ -62,7 +63,7 @@ export const saveToLocalStorage = (save: SaveV3) => {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(save));
   } catch (e) {
-    console.warn('Failed to save to localStorage', e);
+    warn('Failed to save to localStorage', e);
   }
 };
 
@@ -77,7 +78,7 @@ export const loadFromLocalStorage = (): unknown | null => {
     if (!raw) return null;
     return JSON.parse(raw);
   } catch (e) {
-    console.warn('Failed to load save', e);
+    warn('Failed to load save', e);
     return null;
   }
 };
