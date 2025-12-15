@@ -1,25 +1,56 @@
-import type { ResourceState, UnitKey, PrestigeState, UpgradeKey, UpgradeState } from './config';
+import type { ResourceState, UnitKey, PrestigeState, UpgradeKey, UpgradeState, AnomalyKey } from './config';
+import { ANOMALY_CONFIG } from './config';
 
 export type { UnitKey, PrestigeState, UpgradeKey, UpgradeState };
 
+/**
+ * A snapshot of the production rates and multipliers for a single tick.
+ */
 export type ProductionSnapshot = {
+  /** Metal production per second. */
   metal: number
+  /** Energy production per second. */
   energy: number
+  /** Data production per second. */
   data: number
+  /** Probe production per second. */
   probes: number
+  /** Distance exploration rate per second. */
   distance: number
+  /** Rate of change for entropy per second. */
   entropyChange: number
+  /** The current efficiency multiplier due to distance latency (0.0 - 1.0). */
   latencyFactor: number
+  /** The aggregate production multiplier affecting all outputs. */
   productionFactor: number
 }
 
+/**
+ * Clamps a number between a lower and upper bound.
+ *
+ * @param v - The value to clamp.
+ * @param lo - The lower bound.
+ * @param hi - The upper bound.
+ * @returns The clamped value.
+ */
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
+/**
+ * Calculates the production rates for all resources based on the current game state.
+ *
+ * @param resources - Current resource amounts (affects some dynamic rates like entropy).
+ * @param units - Counts of owned units.
+ * @param upgrades - State of purchased upgrades.
+ * @param prestige - Current prestige level and bonuses.
+ * @param scannedAnomalies - List of anomalies that have been scanned and analyzed.
+ * @returns A snapshot of production rates and efficiency factors.
+ */
 export const computeProduction = (
   resources: ResourceState,
   units: Record<UnitKey, number>,
   upgrades: UpgradeState,
   prestige: PrestigeState,
+  scannedAnomalies: AnomalyKey[] = [],
 ): ProductionSnapshot => {
   const normalizedPrestige: PrestigeState = {
     cycles: prestige.cycles ?? 0,
@@ -27,6 +58,9 @@ export const computeProduction = (
     forks: prestige.forks ?? 0,
     primeArchives: prestige.primeArchives ?? 0,
   };
+
+  // Resolve artifacts from anomalies
+  const artifacts = new Set(scannedAnomalies.map(key => ANOMALY_CONFIG[key].reward));
 
   const resonanceBoost = 1 + normalizedPrestige.forks * 0.35 + normalizedPrestige.primeArchives * 0.22;
   const cycleBoost =
@@ -52,23 +86,32 @@ export const computeProduction = (
   );
   const delayCompensation = upgrades.autonomy && baseLatencyFactor < 0.999 ? 1.2 : 1;
   const productionFactor = cycleBoost * latencyFactor * entropyPenalty * delayCompensation;
+
+  // Apply Upgrade Multipliers
   const energyMultiplier = upgrades.dysonSheath ? 1.42 : 1;
-  const probeMultiplier = upgrades.autoforge ? 1.55 : 1;
+  const probeMultiplier = upgrades.autoforge ? 1.5 : 1;
   const dataMultiplier = (upgrades.archiveBloom ? 1.62 : 1) * (1 + normalizedPrestige.primeArchives * 0.05);
   const cartographyExplorationBonus = (upgrades.stellarCartography ? 1.14 : 1) * (1 + normalizedPrestige.forks * 0.04);
 
-  const metal = (5.5 + units.harvesters * 11 + units.foundries * 2) * productionFactor;
-  const energy = (units.foundries * 7.2 * energyMultiplier + units.harvesters * 1.8) * productionFactor;
+  // Apply Artifact Multipliers
+  const artifactMetalBoost = artifacts.has('denseMatter') ? 1.10 : 1.0;
+  const artifactEnergyBoost = artifacts.has('zeroPoint') ? 1.10 : 1.0;
+  const artifactDataBoost = artifacts.has('xenoCode') ? 1.15 : 1.0;
+  const artifactDistanceBoost = artifacts.has('spacetimeFold') ? 1.20 : 1.0;
+
+  const metal = (5.5 + units.harvesters * 11 + units.foundries * 2) * productionFactor * artifactMetalBoost;
+  const energy = (units.foundries * 7.2 * energyMultiplier + units.harvesters * 1.8) * productionFactor * artifactEnergyBoost;
   const probes = (units.fabricators * 1.05 * probeMultiplier + resources.probes * 0.015) * productionFactor;
   const data =
     (units.archives * 1.7 * dataMultiplier + Math.max(0, resources.distance - 32) * 0.022 + 0.1) *
-    productionFactor;
+    productionFactor * artifactDataBoost;
   const distance =
     (resources.probes * (0.1 + units.signalRelays * 0.0043 + (upgrades.autonomy ? 0.026 : 0)) +
       units.fabricators * 0.017 +
       units.archives * 0.005) *
     latencyFactor *
-    cartographyExplorationBonus;
+    cartographyExplorationBonus *
+    artifactDistanceBoost;
 
   return {
     metal,
@@ -82,11 +125,25 @@ export const computeProduction = (
   };
 };
 
+/**
+ * Simulates game progress over a period of offline time.
+ * Calculates resource gains and returns a log message summarizing the results.
+ *
+ * @param resources - Resource state at the start of the offline period.
+ * @param units - Owned units.
+ * @param upgrades - Owned upgrades.
+ * @param prestige - Prestige state.
+ * @param scannedAnomalies - List of scanned anomalies.
+ * @param offlineSeconds - Total seconds of offline time to simulate.
+ * @param stepSec - Optional simulation step size in seconds (default is dynamic).
+ * @returns An object containing the new resource state and a log string.
+ */
 export function simulateOfflineProgress(
   resources: ResourceState,
   units: Record<UnitKey, number>,
   upgrades: UpgradeState,
   prestige: PrestigeState,
+  scannedAnomalies: AnomalyKey[],
   offlineSeconds: number,
   stepSec?: number,
 ): { resources: ResourceState; log: string } {
@@ -106,7 +163,7 @@ export function simulateOfflineProgress(
   for (let i = 0; i < steps; i++) {
     const remaining = seconds - i * step;
     const thisStep = Math.min(step, remaining);
-    const prod = computeProduction(resources, units, upgrades, prestige);
+    const prod = computeProduction(resources, units, upgrades, prestige, scannedAnomalies);
 
     resources = {
       metal: resources.metal + prod.metal * thisStep,

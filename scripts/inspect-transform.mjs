@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Utility script to inspect the output of Vite's SSR transformation.
+ * Useful for debugging how source files are transformed during server-side rendering
+ * or testing, especially for checking module formats and import/export rewriting.
+ *
+ * Usage: node scripts/inspect-transform.mjs
+ */
+
 import { createServer } from 'vite';
 
 async function inspect() {
