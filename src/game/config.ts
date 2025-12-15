@@ -48,6 +48,24 @@ export type UpgradeKey =
   | 'stellarCartography'
 
 /**
+ * Keys identifying the different available stellar artifacts.
+ */
+export type ArtifactKey =
+  | 'denseMatter'
+  | 'zeroPoint'
+  | 'xenoCode'
+  | 'spacetimeFold'
+
+/**
+ * Keys identifying the distinct anomalies that can be discovered.
+ */
+export type AnomalyKey =
+  | 'neutronStar'
+  | 'voidCloud'
+  | 'alienDerelict'
+  | 'wormholeRemnant'
+
+/**
  * Represents a cost in terms of resources.
  * Only properties with values > 0 are usually considered.
  */
@@ -98,6 +116,36 @@ export interface UpgradeConfig {
   requiresCycle?: number
   /** If true, the upgrade persists through prestige resets (optional). */
   persistent?: boolean
+}
+
+/**
+ * Configuration for a stellar artifact.
+ */
+export interface ArtifactConfig {
+  /** Display name of the artifact. */
+  name: string
+  /** Narrative description of the object. */
+  description: string
+  /** Summary of the bonus effect. */
+  effect: string
+  /** CSS color variable for UI accent. */
+  accent: string
+}
+
+/**
+ * Configuration for an anomaly.
+ */
+export interface AnomalyConfig {
+  /** Display name of the anomaly. */
+  name: string
+  /** Narrative description of what is detected. */
+  description: string
+  /** Distance in light years required to detect this anomaly. */
+  distanceReq: number
+  /** Cost to scan/analyze the anomaly. */
+  cost: Cost
+  /** The artifact granted upon completion. */
+  reward: ArtifactKey
 }
 
 /**
@@ -269,5 +317,69 @@ export const UPGRADE_CONFIG: Record<UpgradeKey, UpgradeConfig> = {
     accent: 'var(--accent-green)',
     cost: { data: 440, energy: 420 },
     requiresCycle: 2,
+  },
+};
+
+/**
+ * Static configuration for all stellar artifacts.
+ */
+export const ARTIFACT_CONFIG: Record<ArtifactKey, ArtifactConfig> = {
+  denseMatter: {
+    name: 'Dense Matter Synthesis',
+    description: 'Data harvested from a collapsing neutron star allows for hyper-dense alloy construction.',
+    effect: '+10% metal production.',
+    accent: 'var(--accent-cyan)',
+  },
+  zeroPoint: {
+    name: 'Zero-Point Siphon',
+    description: 'Vacuum energy extraction protocols derived from void cloud telemetry.',
+    effect: '+10% energy production.',
+    accent: 'var(--accent-gold)',
+  },
+  xenoCode: {
+    name: 'Xeno-Algorithms',
+    description: 'Self-optimizing logic shards recovered from an alien derelict.',
+    effect: '+15% data generation.',
+    accent: 'var(--accent-violet)',
+  },
+  spacetimeFold: {
+    name: 'Spacetime Fold',
+    description: 'Wormhole residue allows probes to micro-jump, covering vast distances instantly.',
+    effect: '+20% exploration speed.',
+    accent: 'var(--accent-magenta)',
+  },
+};
+
+/**
+ * Static configuration for discoverable anomalies.
+ */
+export const ANOMALY_CONFIG: Record<AnomalyKey, AnomalyConfig> = {
+  neutronStar: {
+    name: 'Dying Neutron Star',
+    description: 'A super-dense stellar remnant emitting rhythmic radio bursts. Rich in physics data.',
+    distanceReq: 50,
+    cost: { data: 80, energy: 100 },
+    reward: 'denseMatter',
+  },
+  voidCloud: {
+    name: 'Void Cloud',
+    description: 'A localized region of false vacuum instability. Sensors indicate energy fluctuations.',
+    distanceReq: 150,
+    cost: { data: 200, energy: 300 },
+    reward: 'zeroPoint',
+  },
+  alienDerelict: {
+    name: 'Alien Derelict',
+    description: 'A non-humanoid vessel drifting in the silence. It transmits a repeating prime number sequence.',
+    distanceReq: 350,
+    cost: { data: 500, probes: 20 },
+    reward: 'xenoCode',
+  },
+  wormholeRemnant: {
+    name: 'Wormhole Remnant',
+    description: 'Fading gravitational waves from a collapsed bridge in spacetime.',
+    distanceReq: 700,
+    cost: { data: 1200, energy: 2000 },
+    reward: 'spacetimeFold',
   },
 };

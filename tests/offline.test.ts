@@ -7,9 +7,9 @@ describe('simulateOfflineProgress', () => {
     const resources = { ...INITIAL_RESOURCES };
     const units = { ...INITIAL_UNITS };
     const upgrades = { ...INITIAL_UPGRADES };
-    const prestige = { cycles: 0, storedKnowledge: 0 };
+    const prestige = { cycles: 0, storedKnowledge: 0, forks: 0, primeArchives: 0 };
 
-    const { resources: newResources, log } = simulateOfflineProgress(resources, units, upgrades, prestige, 10, 10);
+    const { resources: newResources, log } = simulateOfflineProgress(resources, units, upgrades, prestige, [], 10, 10);
     expect(newResources.metal).toBeGreaterThan(resources.metal);
     expect(newResources.energy).toBeGreaterThanOrEqual(resources.energy);
     expect(newResources.data).toBeGreaterThanOrEqual(resources.data);
@@ -20,10 +20,10 @@ describe('simulateOfflineProgress', () => {
     const resources = { ...INITIAL_RESOURCES, entropy: 0.5 };
     const units = { ...INITIAL_UNITS };
     const upgrades = { ...INITIAL_UPGRADES };
-    const prestige = { cycles: 0, storedKnowledge: 0 };
+    const prestige = { cycles: 0, storedKnowledge: 0, forks: 0, primeArchives: 0 };
 
     const hugeSeconds = 10_000_000;
-    const { resources: newResources } = simulateOfflineProgress(resources, units, upgrades, prestige, hugeSeconds);
+    const { resources: newResources } = simulateOfflineProgress(resources, units, upgrades, prestige, [], hugeSeconds);
     // capped to 24h => should return finite numbers and entropy must be within [0, 0.88]
     expect(Number.isFinite(newResources.metal)).toBe(true);
     expect(newResources.entropy).toBeGreaterThanOrEqual(0);
