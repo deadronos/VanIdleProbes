@@ -49,6 +49,7 @@ export default defineConfig([
 		},
 		rules: {
 			'@typescript-eslint/no-require-imports': 'off',
+			'no-console': 'off',
 		},
 	},
 ]);

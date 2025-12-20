@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import './App.css';
-import type { ResourceKey, ResourceState, UnitKey, UpgradeKey, PrestigeState, UpgradeState, Cost } from './game/config';
-import { INITIAL_RESOURCES, INITIAL_UNITS, INITIAL_PRESTIGE, INITIAL_UPGRADES, UNIT_CONFIG, UPGRADE_CONFIG } from './game/config';
+import type { ResourceKey, ResourceState, UnitKey, UpgradeKey, PrestigeState, UpgradeState, Cost, AnomalyKey } from './game/config';
+import { INITIAL_RESOURCES, INITIAL_UNITS, INITIAL_PRESTIGE, INITIAL_UPGRADES, UNIT_CONFIG, UPGRADE_CONFIG, ANOMALY_CONFIG, ARTIFACT_CONFIG } from './game/config';
 import { computeProduction, simulateOfflineProgress } from './game/engine';
 import { buildSave, saveToLocalStorage, loadFromLocalStorage, exportSaveFile, importSaveFile, migrateSave } from './game/save';
+import { warn } from './util/logger';
 
 const TICK_MS = 250;
 const TICK_RATE = TICK_MS / 1000;
@@ -139,6 +140,7 @@ function App() {
   const [units, setUnits] = useState<Record<UnitKey, number>>(INITIAL_UNITS);
   const [prestige, setPrestige] = useState<PrestigeState>(INITIAL_PRESTIGE);
   const [upgradeState, setUpgradeState] = useState<UpgradeState>(INITIAL_UPGRADES);
+  const [scannedAnomalies, setScannedAnomalies] = useState<AnomalyKey[]>([]);
   const [logs, setLogs] = useState<string[]>([
     'Origin node online. Awaiting replication directives.',
     'First probe awakens near a dying star.',
@@ -151,7 +153,7 @@ function App() {
   const importInputRef = useRef<HTMLInputElement | null>(null);
   
   // Refs to hold latest state for autosave (avoids stale closures in interval)
-  const stateRef = useRef({ resources: INITIAL_RESOURCES, units: INITIAL_UNITS, prestige: INITIAL_PRESTIGE, upgradeState: INITIAL_UPGRADES, logs: [] as string[] });
+  const stateRef = useRef({ resources: INITIAL_RESOURCES, units: INITIAL_UNITS, prestige: INITIAL_PRESTIGE, upgradeState: INITIAL_UPGRADES, scannedAnomalies: [] as AnomalyKey[], logs: [] as string[] });
 
   // deterministic pseudo-random generator (pure) to avoid impure calls during render
   const seededRng = (seed: number) => {
@@ -185,8 +187,8 @@ function App() {
   }, []);
 
   const productionPreview = useMemo(
-    () => computeProduction(resources, units, upgradeState, prestige),
-    [resources, units, upgradeState, prestige],
+    () => computeProduction(resources, units, upgradeState, prestige, scannedAnomalies),
+    [resources, units, upgradeState, prestige, scannedAnomalies],
   );
 
   const activeProbeCount = useMemo(
@@ -281,6 +283,7 @@ function App() {
         setUnits(s.units);
         setPrestige({ ...INITIAL_PRESTIGE, ...s.prestige });
         setUpgradeState(s.upgradeState);
+        setScannedAnomalies(s.scannedAnomalies || []);
         if (s.logs && s.logs.length) {
           const loadedLogs = s.logs;
           setLogs((prev) => [...loadedLogs, ...prev].slice(0, 8));
@@ -296,6 +299,7 @@ function App() {
               s.units,
               s.upgradeState,
               s.prestige,
+              s.scannedAnomalies || [],
               Math.min(offlineSeconds, 24 * 60 * 60),
             );
             setResources(newResources);
@@ -315,7 +319,7 @@ function App() {
     const interval = setInterval(() => {
       const messages: string[] = [];
       setResources((prev) => {
-        const production = computeProduction(prev, units, upgradeState, prestige);
+        const production = computeProduction(prev, units, upgradeState, prestige, scannedAnomalies);
         const next: ResourceState = {
           metal: prev.metal + production.metal * TICK_RATE,
           energy: prev.energy + production.energy * TICK_RATE,
@@ -347,24 +351,24 @@ function App() {
     }, TICK_MS);
 
     return () => clearInterval(interval);
-  }, [units, upgradeState, prestige]);
+  }, [units, upgradeState, prestige, scannedAnomalies]);
 
   // Autosave effect - triggers periodically based on a longer interval
   // Keep stateRef in sync so autosave interval reads fresh values
   useEffect(() => {
-    stateRef.current = { resources, units, prestige, upgradeState, logs };
+    stateRef.current = { resources, units, prestige, upgradeState, scannedAnomalies, logs };
   });
   
   useEffect(() => {
     if (!autosave) return;
     const interval = setInterval(() => {
       try {
-        const { resources: r, units: u, prestige: p, upgradeState: us, logs: l } = stateRef.current;
-        const save = buildSave({ resources: r, units: u, prestige: p, upgradeState: us, logs: l });
+        const { resources: r, units: u, prestige: p, upgradeState: us, scannedAnomalies: sa, logs: l } = stateRef.current;
+        const save = buildSave({ resources: r, units: u, prestige: p, upgradeState: us, scannedAnomalies: sa, logs: l });
         saveToLocalStorage(save);
         setLastSavedAt(save.savedAt);
       } catch (e) {
-        console.warn('Failed to autosave', e);
+        warn('Failed to autosave', e);
       }
     }, 10_000); // Save every 10 seconds
     return () => clearInterval(interval);
@@ -403,6 +407,17 @@ function App() {
     setLogs((prev) => ['Entropy damped. Replication fidelity restored.', ...prev].slice(0, 8));
   };
 
+  const handleScanAnomaly = (key: AnomalyKey) => {
+    if (scannedAnomalies.includes(key)) return;
+    const config = ANOMALY_CONFIG[key];
+    if (resources.distance < config.distanceReq) return;
+    if (!canAffordCost(resources, config.cost)) return;
+
+    setResources((prev) => applyCost(prev, config.cost));
+    setScannedAnomalies((prev) => [...prev, key]);
+    setLogs((prev) => [`Anomaly analyzed: ${config.name}. Artifact recovered.`, ...prev].slice(0, 8));
+  };
+
   const prestigeDistanceProgress = Math.min(resources.distance / PRESTIGE_REQUIREMENTS.distance, 1);
   const prestigeDataProgress = Math.min(resources.data / PRESTIGE_REQUIREMENTS.data, 1);
 
@@ -428,6 +443,7 @@ function App() {
       ...INITIAL_UPGRADES,
       quantumMemory: prev.quantumMemory,
     }));
+    setScannedAnomalies([]); // Reset anomalies on prestige? Usually yes for idle games unless specified otherwise. Assuming reset.
     setResources({
       ...INITIAL_RESOURCES,
       metal: INITIAL_RESOURCES.metal + memoryGain * 32,
@@ -451,6 +467,7 @@ function App() {
       ...INITIAL_UPGRADES,
       quantumMemory: prev.quantumMemory,
     }));
+    setScannedAnomalies([]);
     setResources({
       ...INITIAL_RESOURCES,
       metal: INITIAL_RESOURCES.metal + primeBoost * 160,
@@ -466,10 +483,10 @@ function App() {
 
   const handleExportSave = () => {
     try {
-      const save = buildSave({ resources, units, prestige, upgradeState, logs });
+      const save = buildSave({ resources, units, prestige, upgradeState, scannedAnomalies, logs });
       exportSaveFile(save);
     } catch (e) {
-      console.warn('Export failed', e);
+      warn('Export failed', e);
     }
   };
 
@@ -483,6 +500,7 @@ function App() {
       setUnits(s.units);
       setPrestige({ ...INITIAL_PRESTIGE, ...s.prestige });
       setUpgradeState(s.upgradeState);
+      setScannedAnomalies(s.scannedAnomalies || []);
       if (s.logs && s.logs.length) {
         const loadedLogs = s.logs;
         setLogs((prev) => [...loadedLogs, ...prev].slice(0, 8));
@@ -499,6 +517,7 @@ function App() {
             s.units,
             s.upgradeState,
             s.prestige,
+            s.scannedAnomalies || [],
             Math.min(offlineSeconds, 24 * 60 * 60),
           );
           setResources(newResources);
@@ -506,18 +525,18 @@ function App() {
         }
       }
     } catch (err) {
-      console.warn('Import failed', err);
+      warn('Import failed', err);
     }
   };
 
   const handleManualSave = () => {
     try {
-      const save = buildSave({ resources, units, prestige, upgradeState, logs });
+      const save = buildSave({ resources, units, prestige, upgradeState, scannedAnomalies, logs });
       saveToLocalStorage(save);
       setLastSavedAt(save.savedAt);
       setLogs((prev) => ['Manual save created.', ...prev].slice(0, 8));
     } catch (e) {
-      console.warn('Manual save failed', e);
+      warn('Manual save failed', e);
     }
   };
 
@@ -738,6 +757,59 @@ function App() {
           ))}
         </section>
 
+        <section className="scanner-section">
+          <h2>Deep Space Scanner</h2>
+          <div className="unit-grid">
+            {(Object.keys(ANOMALY_CONFIG) as AnomalyKey[]).map((key) => {
+              const config = ANOMALY_CONFIG[key];
+              const isScanned = scannedAnomalies.includes(key);
+              const isVisible = resources.distance >= config.distanceReq;
+
+              if (!isVisible && !isScanned) return null; // Don't show undiscovered anomalies
+
+              const affordable = canAffordCost(resources, config.cost);
+              const rewardConfig = ARTIFACT_CONFIG[config.reward];
+
+              return (
+                <article key={key} className={`unit-card ${isScanned ? 'scanned' : ''}`} style={{ ['--accent' as string]: rewardConfig.accent }}>
+                  <header>
+                    <span className="unit-icon" aria-hidden>🔭</span>
+                    <div>
+                      <h3>{config.name}</h3>
+                      <span className="unit-count">{isScanned ? 'ANALYZED' : 'DETECTED'}</span>
+                    </div>
+                  </header>
+                  <p>{config.description}</p>
+                  {isScanned ? (
+                    <div className="artifact-reward">
+                      <strong>Artifact: {rewardConfig.name}</strong>
+                      <p>{rewardConfig.description}</p>
+                      <p className="effect">{rewardConfig.effect}</p>
+                    </div>
+                  ) : (
+                    <footer>
+                      <span className="unit-cost">Analyze Cost: {formatCostLabel(config.cost)}</span>
+                      <button
+                        className={affordable ? 'primary' : 'secondary'}
+                        onClick={() => handleScanAnomaly(key)}
+                        disabled={!affordable}
+                      >
+                        Scan Anomaly
+                      </button>
+                    </footer>
+                  )}
+                </article>
+              );
+            })}
+             {/* Fallback if no anomalies are visible yet */}
+             {resources.distance < 50 && scannedAnomalies.length === 0 && (
+                <div className="scanner-placeholder">
+                  <p>Long-range sensors are calibrating. Expand exploration radius to detect stellar anomalies.</p>
+                </div>
+             )}
+          </div>
+        </section>
+
         <section className="unit-section">
           <h2>Replication Network</h2>
           <div className="unit-grid">
@@ -809,18 +881,39 @@ function App() {
           </div>
         </section>
 
-        <section className="prestige-panel">
-          <div className="prestige-tabs">
-            <button className={prestigeTab === 'cycle' ? 'active' : ''} onClick={() => setPrestigeTab('cycle')}>
+        <section className="prestige-panel" aria-labelledby="prestige-heading">
+          <h2 id="prestige-heading" className="visually-hidden">Prestige Options</h2>
+          <div className="prestige-tabs" role="tablist" aria-label="Prestige Options">
+            <button
+              id="tab-cycle"
+              role="tab"
+              aria-selected={prestigeTab === 'cycle'}
+              aria-controls="panel-cycle"
+              className={prestigeTab === 'cycle' ? 'active' : ''}
+              onClick={() => setPrestigeTab('cycle')}
+            >
               Cycle Reboot
             </button>
-            <button className={prestigeTab === 'fork' ? 'active' : ''} onClick={() => setPrestigeTab('fork')}>
+            <button
+              id="tab-fork"
+              role="tab"
+              aria-selected={prestigeTab === 'fork'}
+              aria-controls="panel-fork"
+              className={prestigeTab === 'fork' ? 'active' : ''}
+              onClick={() => setPrestigeTab('fork')}
+            >
               Continuum Fork
             </button>
           </div>
 
           {prestigeTab === 'cycle' ? (
-            <div className="prestige-content">
+            <div
+              id="panel-cycle"
+              role="tabpanel"
+              aria-labelledby="tab-cycle"
+              className="prestige-content"
+              tabIndex={0}
+            >
               <div>
                 <h2>Recompile the Origin</h2>
                 <p>
@@ -881,7 +974,13 @@ function App() {
               </button>
             </div>
           ) : (
-            <div className="prestige-content">
+            <div
+              id="panel-fork"
+              role="tabpanel"
+              aria-labelledby="tab-fork"
+              className="prestige-content"
+              tabIndex={0}
+            >
               <div>
                 <h2>Fork the Continuum</h2>
                 <p>
@@ -953,9 +1052,9 @@ function App() {
           )}
         </section>
 
-        <section className="log-section">
-          <h2>Telemetry Feed</h2>
-          <ul>
+        <section className="log-section" aria-labelledby="log-heading">
+          <h2 id="log-heading">Telemetry Feed</h2>
+          <ul aria-live="polite" aria-atomic="false">
             {logs.map((entry, index) => (
               <li key={`${entry}-${index}`}>{entry}</li>
             ))}
