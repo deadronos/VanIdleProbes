@@ -648,7 +648,14 @@ function App() {
           </div>
           <div className="entropy-panel">
             <h3>Replication Entropy</h3>
-            <div className="entropy-bar">
+          <div
+            className="entropy-bar"
+            role="progressbar"
+            aria-label="Replication Entropy"
+            aria-valuenow={Math.round(Math.min(100, resources.entropy * 100))}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
               <div className="entropy-fill" style={{ width: `${Math.min(100, resources.entropy * 100)}%` }} />
             </div>
             <p
@@ -676,14 +683,21 @@ function App() {
             <div className="milestone-tracker">
               <div className="milestone-card">
                 <div className="milestone-header">
-                  <span>Signal Horizon</span>
+                  <span id="milestone-signal-label">Signal Horizon</span>
                   <span>
                     {distanceMilestoneProgress.next
                       ? `${formatNumber(resources.distance)} / ${formatNumber(distanceMilestoneProgress.next)} ly`
                       : `${formatNumber(resources.distance)} ly`}
                   </span>
                 </div>
-                <div className="milestone-bar">
+                <div
+                  className="milestone-bar"
+                  role="progressbar"
+                  aria-labelledby="milestone-signal-label"
+                  aria-valuenow={Math.round(distanceMilestoneProgress.progress * 100)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
                   <div
                     className="milestone-bar-fill"
                     style={{ width: `${distanceMilestoneProgress.progress * 100}%` }}
@@ -699,14 +713,21 @@ function App() {
               </div>
               <div className="milestone-card">
                 <div className="milestone-header">
-                  <span>Archive Compression</span>
+                  <span id="milestone-data-label">Archive Compression</span>
                   <span>
                     {dataMilestoneProgress.next
                       ? `${formatNumber(resources.data)} / ${formatNumber(dataMilestoneProgress.next)} data`
                       : `${formatNumber(resources.data)} data`}
                   </span>
                 </div>
-                <div className="milestone-bar">
+                <div
+                  className="milestone-bar"
+                  role="progressbar"
+                  aria-labelledby="milestone-data-label"
+                  aria-valuenow={Math.round(dataMilestoneProgress.progress * 100)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
                   <div
                     className="milestone-bar-fill"
                     style={{ width: `${dataMilestoneProgress.progress * 100}%` }}
@@ -936,7 +957,14 @@ function App() {
                         {formatNumber(PRESTIGE_REQUIREMENTS.distance)} ly
                       </span>
                     </div>
-                    <div className="progress-bar">
+                    <div
+                      className="progress-bar"
+                      role="progressbar"
+                      aria-label="Exploration Progress"
+                      aria-valuenow={Math.round(prestigeDistanceProgress * 100)}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
                       <div style={{ width: `${prestigeDistanceProgress * 100}%` }} />
                     </div>
                   </div>
@@ -948,7 +976,14 @@ function App() {
                         {formatNumber(PRESTIGE_REQUIREMENTS.data)} data
                       </span>
                     </div>
-                    <div className="progress-bar">
+                    <div
+                      className="progress-bar"
+                      role="progressbar"
+                      aria-label="Archives Progress"
+                      aria-valuenow={Math.round(prestigeDataProgress * 100)}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
                       <div style={{ width: `${prestigeDataProgress * 100}%` }} />
                     </div>
                   </div>
@@ -1001,7 +1036,14 @@ function App() {
                         {FORK_REQUIREMENTS.cycles + 1} cycles
                       </span>
                     </div>
-                    <div className="progress-bar">
+                    <div
+                      className="progress-bar"
+                      role="progressbar"
+                      aria-label="Cycle Depth"
+                      aria-valuenow={Math.round(forkProgress.cycleProgress * 100)}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
                       <div style={{ width: `${forkProgress.cycleProgress * 100}%` }} />
                     </div>
                   </div>
@@ -1013,7 +1055,14 @@ function App() {
                         {formatNumber(FORK_REQUIREMENTS.distance)} ly
                       </span>
                     </div>
-                    <div className="progress-bar">
+                    <div
+                      className="progress-bar"
+                      role="progressbar"
+                      aria-label="Signal Reach"
+                      aria-valuenow={Math.round(forkProgress.distanceProgress * 100)}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
                       <div style={{ width: `${forkProgress.distanceProgress * 100}%` }} />
                     </div>
                   </div>
@@ -1025,7 +1074,14 @@ function App() {
                         {formatNumber(FORK_REQUIREMENTS.data)} data
                       </span>
                     </div>
-                    <div className="progress-bar">
+                    <div
+                      className="progress-bar"
+                      role="progressbar"
+                      aria-label="Archive Density"
+                      aria-valuenow={Math.round(forkProgress.dataProgress * 100)}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
                       <div style={{ width: `${forkProgress.dataProgress * 100}%` }} />
                     </div>
                   </div>
