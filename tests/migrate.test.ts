@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CURRENT_SAVE_VERSION, migrate_v0_to_v2 } from '../src/game/save';
+import { migrate_v0_to_v2 } from '../src/game/save';
 import { INITIAL_RESOURCES, INITIAL_UNITS } from '../src/game/config';
 
 describe('migrate_v0_to_v2', () => {
