@@ -6,6 +6,18 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 
 export default defineConfig([
+	{
+		ignores: [
+			'node_modules',
+			'dist',
+			'temp-tsc-out',
+			'public',
+			'.vscode',
+			'*.min.js',
+			'*.bundle.js',
+		],
+	},
+
 	// Base JavaScript recommended rules
 	js.configs.recommended,
 
@@ -21,7 +33,6 @@ export default defineConfig([
 
 	// Project-specific final overrides
 	{
-		ignores: ['dist', 'node_modules', 'temp-tsc-out'],
 		languageOptions: {
 			ecmaVersion: 2022,
 			sourceType: 'module',
