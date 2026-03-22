@@ -22,7 +22,24 @@ export type ProductionSnapshot = {
   /** The current efficiency multiplier due to distance latency (0.0 - 1.0). */
   latencyFactor: number
   /** The aggregate production multiplier affecting all outputs. */
-  productionFactor: number
+  productionFactor: number;
+  multipliers: {
+    prestige: number;
+    latency: number;
+    entropy: number;
+    upgrades: {
+      energy: number;
+      probes: number;
+      data: number;
+      distance: number;
+    };
+    artifacts: {
+      metal: number;
+      energy: number;
+      data: number;
+      distance: number;
+    };
+  };
 }
 
 /**
@@ -76,7 +93,7 @@ export const computeProduction = (
   const entropyDamping = Math.max(0.65, 1 - normalizedPrestige.primeArchives * 0.06);
   const entropyPressure =
     upgrades.stellarCartography || normalizedPrestige.primeArchives > 0
-      ? entropyPressureBase * Math.min(1, 0.82 * entropyDamping)
+      ? entropyPressureBase * Math.min(1, 0.85 * entropyDamping)
       : entropyPressureBase * entropyDamping;
   const entropyMitigation = units.stabilizers * 0.022 + (upgrades.stellarCartography ? 0.012 : 0);
   const entropyChange = entropyPressure - entropyMitigation;
@@ -88,9 +105,9 @@ export const computeProduction = (
   const productionFactor = cycleBoost * latencyFactor * entropyPenalty * delayCompensation;
 
   // Apply Upgrade Multipliers
-  const energyMultiplier = upgrades.dysonSheath ? 1.42 : 1;
+  const energyMultiplier = upgrades.dysonSheath ? 1.40 : 1;
   const probeMultiplier = upgrades.autoforge ? 1.5 : 1;
-  const dataMultiplier = (upgrades.archiveBloom ? 1.62 : 1) * (1 + normalizedPrestige.primeArchives * 0.05);
+  const dataMultiplier = (upgrades.archiveBloom ? 1.60 : 1) * (1 + normalizedPrestige.primeArchives * 0.05);
   const cartographyExplorationBonus = (upgrades.stellarCartography ? 1.14 : 1) * (1 + normalizedPrestige.forks * 0.04);
 
   // Apply Artifact Multipliers
@@ -106,7 +123,7 @@ export const computeProduction = (
     (units.archives * 1.7 * dataMultiplier + Math.max(0, resources.distance - 32) * 0.022 + 0.1) *
     productionFactor * artifactDataBoost;
   const distance =
-    (resources.probes * (0.1 + units.signalRelays * 0.0043 + (upgrades.autonomy ? 0.026 : 0)) +
+    (resources.probes * (0.1 + units.signalRelays * 0.0043 + (upgrades.autonomy ? 0.025 : 0)) +
       units.fabricators * 0.017 +
       units.archives * 0.005) *
     latencyFactor *
@@ -122,8 +139,26 @@ export const computeProduction = (
     entropyChange,
     latencyFactor,
     productionFactor,
+    multipliers: {
+      prestige: cycleBoost,
+      latency: latencyFactor,
+      entropy: entropyPenalty,
+      upgrades: {
+        energy: energyMultiplier,
+        probes: probeMultiplier,
+        data: dataMultiplier,
+        distance: cartographyExplorationBonus,
+      },
+      artifacts: {
+        metal: artifactMetalBoost,
+        energy: artifactEnergyBoost,
+        data: artifactDataBoost,
+        distance: artifactDistanceBoost,
+      },
+    },
   };
 };
+
 
 /**
  * Simulates game progress over a period of offline time.
