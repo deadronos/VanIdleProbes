@@ -1,4 +1,4 @@
-import React from 'react';
+import type { CSSProperties } from 'react';
 import { AnomalyKey, ANOMALY_CONFIG } from '../game/config';
 
 interface Star {
@@ -26,14 +26,18 @@ interface GalaxyMapProps {
   scannedAnomalies: AnomalyKey[];
 }
 
-export const GalaxyMap: React.FC<GalaxyMapProps> = ({
+const anomalyKeys = Object.keys(ANOMALY_CONFIG) as AnomalyKey[];
+
+export function GalaxyMap({
   starfield,
   swarmSeed,
   activeProbeCount,
   orbitExpansion,
   distance,
   scannedAnomalies,
-}) => {
+}: GalaxyMapProps) {
+  'use no memo';
+
   return (
     <div className="galaxy-map">
       {starfield.slice(0, 60).map((star) => (
@@ -59,13 +63,13 @@ export const GalaxyMap: React.FC<GalaxyMapProps> = ({
               '--radius': `${(probe.radius * orbitExpansion).toFixed(2)}%`,
               '--duration': `${probe.duration}s`,
               '--glow': `hsla(${probe.hue}, 90%, 70%, 0.9)`,
-            } as React.CSSProperties}
+            } as CSSProperties}
           />
         ))}
       </div>
 
       {/* Anomaly Markers */}
-      {(Object.keys(ANOMALY_CONFIG) as AnomalyKey[]).map((key) => {
+      {anomalyKeys.map((key) => {
         const config = ANOMALY_CONFIG[key];
         const isScanned = scannedAnomalies.includes(key);
         const isVisible = distance >= config.distanceReq;
@@ -97,4 +101,4 @@ export const GalaxyMap: React.FC<GalaxyMapProps> = ({
       <div className="origin-node">Origin</div>
     </div>
   );
-};
+}

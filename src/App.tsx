@@ -5,7 +5,7 @@ import { INITIAL_RESOURCES, INITIAL_UNITS, INITIAL_PRESTIGE, INITIAL_UPGRADES, U
 import { computeProduction, simulateOfflineProgress } from './game/engine';
 import { buildSave, saveToLocalStorage, loadFromLocalStorage, migrateSave } from './game/save';
 import { formatNumber } from './components/Formatters';
-import { canAffordCost, applyCost, getUnitCost } from './util/game-logic';
+import { canAffordCost, applyCost, calculateBulkUnitPurchase } from './util/game-logic';
 import { ResourceCard } from './components/ResourceCard';
 import { UnitCard } from './components/UnitCard';
 import { UpgradeCard } from './components/UpgradeCard';
@@ -93,6 +93,9 @@ function App() {
   const totalMultiplier = cycleMultiplier * resonanceBonus;
   const baseMemoryGain = Math.max(0, Math.floor(resources.distance / 12 + resources.data / 140) - 14);
   const primeGain = Math.max(0, Math.floor(prestige.cycles / 1.5 + resources.distance / 280) - 2);
+  const projectedMemoryGain = baseMemoryGain + (upgradeState.quantumMemory ? 1 : 0);
+  const nextThroughputMultiplier =
+    (1 + (prestige.cycles + 1) * 0.55 + (prestige.storedKnowledge + projectedMemoryGain) * 0.15) * resonanceBonus;
 
   useEffect(() => {
     const raw = loadFromLocalStorage();
@@ -183,12 +186,11 @@ function App() {
   }, [autosave]);
 
   const handlePurchaseUnit = (key: UnitKey) => {
-    for(let i=0; i<buyAmount; i++) {
-        const cost = getUnitCost(key, units[key] + i);
-        if (!canAffordCost(resources, cost)) break;
-        setResources(prev => applyCost(prev, cost));
-        setUnits(prev => ({ ...prev, [key]: prev[key] + 1 }));
-    }
+    const preview = calculateBulkUnitPurchase(resources, key, units[key], buyAmount);
+    if (preview.purchased === 0) return;
+
+    setResources(preview.remainingResources);
+    setUnits((prev) => ({ ...prev, [key]: prev[key] + preview.purchased }));
   };
 
   const handlePurchaseUpgrade = (key: UpgradeKey) => {
@@ -220,11 +222,11 @@ function App() {
   };
 
   const handlePrestige = () => {
-    const memoryGain = baseMemoryGain;
+    const memoryGain = projectedMemoryGain;
     setPrestige((prev) => ({
       ...prev,
       cycles: prev.cycles + 1,
-      storedKnowledge: prev.storedKnowledge + memoryGain + (upgradeState.quantumMemory ? 1 : 0),
+      storedKnowledge: prev.storedKnowledge + memoryGain,
     }));
     setUnits(INITIAL_UNITS);
     setUpgradeState((prev) => ({ ...INITIAL_UPGRADES, quantumMemory: prev.quantumMemory }));
@@ -309,9 +311,21 @@ function App() {
             </div>
           </div>
           <div className="unit-grid">
-            {(Object.keys(UNIT_CONFIG) as UnitKey[]).map((key) => (
-              <UnitCard key={key} unitKey={key} count={units[key]} cost={getUnitCost(key, units[key])} onAction={() => handlePurchaseUnit(key)} canAfford={canAffordCost(resources, getUnitCost(key, units[key]))} />
-            ))}
+            {(Object.keys(UNIT_CONFIG) as UnitKey[]).map((key) => {
+              const preview = calculateBulkUnitPurchase(resources, key, units[key], buyAmount);
+
+              return (
+                <UnitCard
+                  key={key}
+                  unitKey={key}
+                  count={units[key]}
+                  purchaseCount={preview.purchased}
+                  cost={preview.totalCost}
+                  onAction={() => handlePurchaseUnit(key)}
+                  canAfford={preview.purchased > 0}
+                />
+              );
+            })}
           </div>
         </section>
 
@@ -340,7 +354,7 @@ function App() {
           setPrestigeTab={setPrestigeTab}
           requirements={{ cycle: PRESTIGE_REQUIREMENTS, fork: FORK_REQUIREMENTS }}
           projections={{
-            cycle: { projectedGain: baseMemoryGain, baseGain: baseMemoryGain, nextMultiplier: 0, currentMultiplier: totalMultiplier, projectedKnowledge: prestige.storedKnowledge + baseMemoryGain },
+            cycle: { projectedGain: projectedMemoryGain, baseGain: baseMemoryGain, nextMultiplier: nextThroughputMultiplier, currentMultiplier: totalMultiplier, projectedKnowledge: prestige.storedKnowledge + projectedMemoryGain },
             fork: { gain: primeGain, nextPrime: prestige.primeArchives + primeGain, nextFork: prestige.forks + 1 }
           }}
           progress={{

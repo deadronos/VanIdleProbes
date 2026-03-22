@@ -32,6 +32,63 @@ export const getUnitCost = (key: UnitKey, owned: number) => {
   ) as Cost;
 };
 
+export interface BulkUnitPurchasePreview {
+  purchased: number
+  totalCost: Cost
+  remainingResources: ResourceState
+  nextOwned: number
+}
+
+const addCost = (target: Cost, source: Cost) => {
+  for (const [key, value] of Object.entries(source) as [ResourceKey, number][]) {
+    if (!value) continue;
+    target[key] = (target[key] ?? 0) + value;
+  }
+};
+
+/**
+ * Simulates how many units can be purchased sequentially with the available resources.
+ * Returns the actual purchasable count, total cost, and remaining resources.
+ */
+export const calculateBulkUnitPurchase = (
+  resources: ResourceState,
+  key: UnitKey,
+  owned: number,
+  requestedAmount: number,
+): BulkUnitPurchasePreview => {
+  const targetAmount = Math.max(0, Math.floor(requestedAmount));
+  if (targetAmount === 0) {
+    return {
+      purchased: 0,
+      totalCost: {},
+      remainingResources: resources,
+      nextOwned: owned,
+    };
+  }
+
+  let remainingResources = resources;
+  let purchased = 0;
+  let nextOwned = owned;
+  const totalCost: Cost = {};
+
+  while (purchased < targetAmount) {
+    const cost = getUnitCost(key, nextOwned);
+    if (!canAffordCost(remainingResources, cost)) break;
+
+    remainingResources = applyCost(remainingResources, cost);
+    addCost(totalCost, cost);
+    purchased += 1;
+    nextOwned += 1;
+  }
+
+  return {
+    purchased,
+    totalCost,
+    remainingResources,
+    nextOwned,
+  };
+};
+
 export interface MilestoneProgress {
   previous: number
   next?: number

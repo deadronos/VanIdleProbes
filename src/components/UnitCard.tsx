@@ -6,13 +6,23 @@ interface UnitCardProps {
   unitKey?: UnitKey;
   anomalyKey?: AnomalyKey;
   count?: number;
+  purchaseCount?: number;
   cost: Cost;
   onAction: () => void;
   canAfford: boolean;
   isScanned?: boolean;
 }
 
-export const UnitCard: React.FC<UnitCardProps> = ({ unitKey, anomalyKey, count, cost, onAction, canAfford, isScanned }) => {
+export const UnitCard: React.FC<UnitCardProps> = ({
+  unitKey,
+  anomalyKey,
+  count,
+  purchaseCount = 0,
+  cost,
+  onAction,
+  canAfford,
+  isScanned,
+}) => {
   if (unitKey) {
     const config = UNIT_CONFIG[unitKey];
     return (
@@ -26,7 +36,9 @@ export const UnitCard: React.FC<UnitCardProps> = ({ unitKey, anomalyKey, count, 
         </header>
         <p>{config.description}</p>
         <footer>
-          <span className="unit-cost">Cost: {formatCostLabel(cost as Record<string, number>)}</span>
+          <span className="unit-cost">
+            Cost{purchaseCount > 1 ? ` (${purchaseCount}x)` : ''}: {canAfford ? formatCostLabel(cost as Record<string, number>) : 'Unavailable'}
+          </span>
           <button className="primary" onClick={onAction} disabled={!canAfford}>
             Construct Unit
           </button>

@@ -99,6 +99,7 @@ export const PrestigePanel: React.FC<PrestigePanelProps> = ({
             </div>
             <div className="prestige-stats">
               <div><strong>Projected Memory Gain:</strong> {formatNumber(projections.cycle.projectedGain)}</div>
+              <div><strong>Current Throughput:</strong> {projections.cycle.currentMultiplier.toFixed(2)}×</div>
               <div><strong>Next Cycle Throughput:</strong> {projections.cycle.nextMultiplier.toFixed(2)}×</div>
             </div>
           </div>
